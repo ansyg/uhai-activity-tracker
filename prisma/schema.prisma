@@ -1,0 +1,449 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum TrackerVisibility {
+  PUBLIC // any signed-in user can see it and request to join
+  PRIVATE // only visible to members and people the owner invites
+}
+
+enum MembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REMOVED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum MenuScope {
+  GLOBAL // platform-wide feature, checked against the user's UserRole(s)
+  TRACKER // per-tracker feature, checked against the user's TrackerMembership.role for that tracker
+}
+
+enum PermissionAction {
+  VIEW
+  CREATE
+  EDIT
+  DELETE
+  APPROVE
+  MANAGE // role/member/settings management for that menu
+}
+
+enum ActivityStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum SystemRole {
+  SOURCE // sends data into the integration
+  TARGET // receives data from the integration
+  PARTICIPANT // involved but not clearly source/target (or single-system tracker)
+}
+
+enum NotificationType {
+  JOIN_REQUESTED
+  JOIN_DECIDED
+  INVITE_ACCEPTED
+  ACTIVITY_ASSIGNED
+  STATUS_CHANGED
+  DEADLINE_DUE_SOON
+  DEADLINE_OVERDUE
+  COMMENT_MENTION
+  CALENDAR_SYNC_FAILED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  PUSH
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String? // null for Google-only accounts
+  avatarUrl    String?
+  googleId     String?  @unique
+  isActive     Boolean  @default(true) // a deactivated account can't sign in or have its session refreshed (ARCHITECTURE.md §5)
+  createdAt    DateTime @default(now())
+
+  ownedTrackers      Tracker[]           @relation("TrackerOwner")
+  trackerMemberships TrackerMembership[]
+  globalRoles        UserRole[]
+  sentInvites        TrackerInvite[]     @relation("InviteSender")
+  activityAssignments ActivityAssignee[]
+  activityHistory    ActivityHistory[]
+  comments           Comment[]
+  devices            Device[]
+  calendarConnection CalendarConnection?
+  notifications      Notification[]
+  notificationPrefs  NotificationPreference[]
+  refreshTokens      RefreshToken[]
+}
+
+// Backs the rotating refresh token described in ARCHITECTURE.md §5/§11:
+// each refresh revokes the presented row and creates a new one sharing its
+// familyId. Presenting a token that's already revoked (reuse of a stale
+// token) revokes every row left in that family, ending the whole session.
+model RefreshToken {
+  id         String    @id @default(cuid())
+  user       User      @relation(fields: [userId], references: [id])
+  userId     String
+  tokenHash  String    @unique // sha256 of the opaque token in the client's cookie, never the raw value
+  familyId   String // shared by every token descended from one original login
+  revokedAt  DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([familyId])
+}
+
+// ---------------------------------------------------------------------------
+// Menu-based RBAC: Menu (a feature/nav item) -> Permission (an action on
+// that menu) -> Role (a named bundle of permissions) -> User/TrackerMembership
+// (who holds that role). Roles are data, not enums, so an admin can create
+// a new role or change what an existing one can see/do without a deploy.
+// ---------------------------------------------------------------------------
+
+model Menu {
+  id       String    @id @default(cuid())
+  key      String    @unique // e.g. "trackers", "tracker.activities", "tracker.approvals", "system_directory", "roles", "users"
+  label    String // display name in the sidebar
+  scope    MenuScope
+  icon     String?
+  parent   Menu?     @relation("MenuChildren", fields: [parentId], references: [id])
+  parentId String?
+  order    Int       @default(0)
+
+  children    Menu[]       @relation("MenuChildren")
+  permissions Permission[]
+}
+
+model Permission {
+  id     String            @id @default(cuid())
+  menu   Menu              @relation(fields: [menuId], references: [id])
+  menuId String
+  action PermissionAction
+
+  roles RolePermission[]
+
+  @@unique([menuId, action])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g. "Platform Admin", "Owner", "Contributor", "QA Lead"
+  description String?
+  isSystem    Boolean  @default(false) // seeded defaults; cannot be deleted from the UI
+  createdAt   DateTime @default(now())
+
+  permissions         RolePermission[]
+  userRoles           UserRole[]
+  trackerMemberships  TrackerMembership[]
+  trackerInvites      TrackerInvite[]
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+// Platform-wide role assignment (e.g. "Platform Admin" sees the System
+// Directory and Roles & Permissions menus app-wide). Separate from
+// TrackerMembership.role, which is scoped to a single tracker.
+model UserRole {
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+  role   Role   @relation(fields: [roleId], references: [id])
+  roleId String
+
+  @@unique([userId, roleId])
+}
+
+model Device {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  platform  String // ios | android | web
+  pushToken String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, pushToken])
+}
+
+// ---------------------------------------------------------------------------
+// System directory — the systems a tracker is implementing/integrating.
+// Registered once, reusable across any number of trackers over time.
+// ---------------------------------------------------------------------------
+
+model System {
+  id           String   @id @default(cuid())
+  name         String   @unique // e.g. "GOTHOMIS", "Afya Maoni"
+  description  String?
+  url          String? // system home page / portal
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  createdAt    DateTime @default(now())
+
+  modules        Module[]
+  trackerLinks   TrackerSystem[]
+}
+
+model Module {
+  id          String  @id @default(cuid())
+  system      System  @relation(fields: [systemId], references: [id])
+  systemId    String
+  name        String // e.g. "OPD", "IPD", "Lab", "WhatsApp channel"
+  description String?
+
+  activities Activity[]
+
+  @@unique([systemId, name])
+}
+
+// ---------------------------------------------------------------------------
+// Tracker (a project, e.g. "Afya Maoni x GOTHOMIS Integration")
+// ---------------------------------------------------------------------------
+
+model Tracker {
+  id                  String            @id @default(cuid())
+  name                String
+  description         String?
+  visibility          TrackerVisibility @default(PRIVATE)
+  owner               User              @relation("TrackerOwner", fields: [ownerId], references: [id])
+  ownerId             String
+  startDate           DateTime? // the project's planned start - distinct from Activity dates, which track individual work items
+  endDate             DateTime?
+  calendarSyncEnabled Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  memberships TrackerMembership[]
+  invites     TrackerInvite[]
+  systems     TrackerSystem[]
+  phases      Phase[]
+  activities  Activity[]
+}
+
+// Which system(s) a tracker is about - most integration trackers link two
+// (SOURCE + TARGET); a single-system rollout tracker links just one.
+model TrackerSystem {
+  id        String     @id @default(cuid())
+  tracker   Tracker    @relation(fields: [trackerId], references: [id])
+  trackerId String
+  system    System     @relation(fields: [systemId], references: [id])
+  systemId  String
+  role      SystemRole @default(PARTICIPANT)
+
+  @@unique([trackerId, systemId])
+}
+
+// A row in here is both the "subscription" (join request) record and,
+// once approved, the membership + role record for that tracker.
+model TrackerMembership {
+  id           String           @id @default(cuid())
+  tracker      Tracker          @relation(fields: [trackerId], references: [id])
+  trackerId    String
+  user         User             @relation(fields: [userId], references: [id])
+  userId       String
+  role         Role             @relation(fields: [roleId], references: [id])
+  roleId       String // one of the seeded tracker-role templates (Owner/Admin/Manager/Contributor/Viewer) or a custom role
+  status       MembershipStatus @default(PENDING)
+  requestedAt  DateTime         @default(now())
+  decidedAt    DateTime?
+  decidedById  String?
+  decisionNote String?
+
+  @@unique([trackerId, userId])
+}
+
+// An owner/admin inviting someone by email - who may not have an account
+// yet - rather than that person finding the tracker and requesting access.
+// Kept separate from TrackerMembership because there is no User row to
+// point at until the invite is accepted.
+model TrackerInvite {
+  id          String       @id @default(cuid())
+  tracker     Tracker      @relation(fields: [trackerId], references: [id])
+  trackerId   String
+  email       String // the exact address the recipient must sign in with to accept
+  role        Role         @relation(fields: [roleId], references: [id])
+  roleId      String
+  invitedBy   User         @relation("InviteSender", fields: [invitedById], references: [id])
+  invitedById String
+  token       String       @unique
+  status      InviteStatus @default(PENDING)
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+
+  // Deliberately no uniqueness on (trackerId, email[, status]): an address can be
+  // invited, revoked, and re-invited any number of times, each leaving its own
+  // historical row. "At most one PENDING at a time" is an app-level invariant
+  // enforced in the invites route, not a DB constraint.
+  @@index([trackerId, email, status])
+}
+
+model Phase {
+  id        String   @id @default(cuid())
+  tracker   Tracker  @relation(fields: [trackerId], references: [id])
+  trackerId String
+  name      String
+  sequence  Int
+
+  activities Activity[]
+}
+
+model Activity {
+  id            String         @id @default(cuid())
+  tracker       Tracker        @relation(fields: [trackerId], references: [id])
+  trackerId     String
+  phase         Phase          @relation(fields: [phaseId], references: [id])
+  phaseId       String
+  module        Module?        @relation(fields: [moduleId], references: [id])
+  moduleId      String? // which system module this activity concerns, if known
+  title         String
+  description   String?
+  statusPercent Int            @default(0)
+  status        ActivityStatus @default(NOT_STARTED)
+  startDate     DateTime?
+  endDate       DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  assignees      ActivityAssignee[]
+  history        ActivityHistory[]
+  comments       Comment[]
+  attachments    Attachment[]
+  calendarEvents CalendarEventMap[]
+}
+
+// Links an activity to a user and/or a free-text role tag (e.g. "Backend",
+// "DevOps") so legacy spreadsheet data such as "Backend / DevOps" can be
+// imported before every tag has a real user attached to it.
+model ActivityAssignee {
+  id         String   @id @default(cuid())
+  activity   Activity @relation(fields: [activityId], references: [id])
+  activityId String
+  user       User?    @relation(fields: [userId], references: [id])
+  userId     String?
+  roleTag    String?
+
+  @@unique([activityId, userId, roleTag])
+}
+
+model ActivityHistory {
+  id          String   @id @default(cuid())
+  activity    Activity @relation(fields: [activityId], references: [id])
+  activityId  String
+  changedBy   User?    @relation(fields: [changedById], references: [id])
+  changedById String?
+  field       String
+  oldValue    String?
+  newValue    String?
+  source      String   @default("app") // app | google_calendar | import
+  createdAt   DateTime @default(now())
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  activity   Activity @relation(fields: [activityId], references: [id])
+  activityId String
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  body       String
+  createdAt  DateTime @default(now())
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  activity   Activity @relation(fields: [activityId], references: [id])
+  activityId String
+  fileUrl    String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Google Calendar integration
+// ---------------------------------------------------------------------------
+
+model CalendarConnection {
+  id              String    @id @default(cuid())
+  user            User      @relation(fields: [userId], references: [id])
+  userId          String    @unique
+  accessToken     String // encrypted at rest (see ARCHITECTURE.md > Security)
+  refreshToken    String // encrypted at rest
+  scope           String
+  expiry          DateTime
+  calendarId      String
+  watchChannelId  String?
+  watchResourceId String?
+  watchExpiry     DateTime?
+  syncToken       String?
+  createdAt       DateTime  @default(now())
+
+  eventMaps CalendarEventMap[]
+}
+
+model CalendarEventMap {
+  id                   String             @id @default(cuid())
+  activity             Activity           @relation(fields: [activityId], references: [id])
+  activityId           String
+  calendarConnection   CalendarConnection @relation(fields: [calendarConnectionId], references: [id])
+  calendarConnectionId String
+  googleEventId        String
+  lastSyncedAt         DateTime           @default(now())
+
+  @@unique([activityId, calendarConnectionId])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String            @id @default(cuid())
+  user      User              @relation(fields: [userId], references: [id])
+  userId    String
+  type      NotificationType
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime          @default(now())
+}
+
+model NotificationPreference {
+  id      String              @id @default(cuid())
+  user    User                @relation(fields: [userId], references: [id])
+  userId  String
+  type    NotificationType
+  channel NotificationChannel
+  enabled Boolean             @default(true)
+
+  @@unique([userId, type, channel])
+}
