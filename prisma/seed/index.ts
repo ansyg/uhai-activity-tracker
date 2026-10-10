@@ -4,6 +4,7 @@
  * tracker seed can assign a roleId to the owner's TrackerMembership.
  */
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../../src/lib/auth/passwords";
 import { seedRbac } from "./rbac";
 import { seedTrackerFromExcel } from "./seed-from-excel";
 
@@ -23,6 +24,19 @@ async function main() {
   });
 
   console.log(`Granted Platform Admin to ${owner.email}.`);
+
+  // Optional, env-gated: bootstrap the owner's password in an environment
+  // that only has this seed to go on (e.g. a fresh production DB) and no
+  // passwordHash yet. Never overwrites a password that's already set, so
+  // this can't clobber a real password someone later changed in the app.
+  if (process.env.SEED_OWNER_PASSWORD) {
+    const current = await prisma.user.findUnique({ where: { id: owner.id }, select: { passwordHash: true } });
+    if (!current?.passwordHash) {
+      const passwordHash = await hashPassword(process.env.SEED_OWNER_PASSWORD);
+      await prisma.user.update({ where: { id: owner.id }, data: { passwordHash } });
+      console.log(`Set initial password for ${owner.email}.`);
+    }
+  }
 }
 
 main()

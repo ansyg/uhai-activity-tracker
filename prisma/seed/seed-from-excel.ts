@@ -10,10 +10,7 @@ import * as XLSX from "xlsx";
 
 const prisma = new PrismaClient();
 
-const WORKBOOK_PATH = path.resolve(
-  __dirname,
-  "../../../Afya Maoni GoTHOMIS Integration Tracker.xlsx"
-);
+const WORKBOOK_PATH = path.resolve(__dirname, "../../Afya Maoni GoTHOMIS Integration Tracker.xlsx");
 
 const SHEET_NAME = "Implementation Tracker";
 const FIRST_DATA_ROW = 19; // row 18 holds the header; data starts at 19
@@ -82,6 +79,16 @@ export async function seedTrackerFromExcel(roleIdByName: Record<string, string>)
     create: { email: ownerEmail, name: "Tracker Owner" },
   });
 
+  const TRACKER_NAME = "Afya Maoni x GOTHOMIS Integration";
+
+  const existingTracker = await prisma.tracker.findFirst({
+    where: { ownerId: owner.id, name: TRACKER_NAME },
+  });
+  if (existingTracker) {
+    console.log(`Tracker "${TRACKER_NAME}" already exists for ${owner.email} - skipping (seed is a one-time bootstrap).`);
+    return owner;
+  }
+
   const rows = readRows();
 
   // Systems are a reusable directory, not something baked into this one
@@ -124,7 +131,7 @@ export async function seedTrackerFromExcel(roleIdByName: Record<string, string>)
 
   const tracker = await prisma.tracker.create({
     data: {
-      name: "Afya Maoni x GOTHOMIS Integration",
+      name: TRACKER_NAME,
       description:
         "Implementation tracker for integrating the GOTHOMIS facility system with the Afya Maoni client feedback platform.",
       ownerId: owner.id,

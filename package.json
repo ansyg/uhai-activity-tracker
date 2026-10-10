@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma migrate deploy && tsx prisma/seed/index.ts && next build",
     "start": "next start",
     "lint": "eslint .",
     "postinstall": "prisma generate",
