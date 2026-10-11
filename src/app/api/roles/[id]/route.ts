@@ -41,12 +41,49 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
       return tx.role.update({
         where: { id },
-        data: { description: body.description ?? undefined },
+        data: {
+          name: body.name,
+          description: body.description ?? undefined,
+        },
         include: roleInclude,
       });
     });
 
     return NextResponse.json({ role });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+/** Deleting a custom role is blocked while anyone still holds it — reassign them first. Built-in roles can't be deleted. */
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const userId = await requireUserId();
+    await requireGlobalGrant(userId, "roles_permissions", "MANAGE");
+
+    const { id } = await params;
+    const [role, userRoleCount, membershipCount, inviteCount] = await Promise.all([
+      prisma.role.findUnique({ where: { id } }),
+      prisma.userRole.count({ where: { roleId: id } }),
+      prisma.trackerMembership.count({ where: { roleId: id } }),
+      prisma.trackerInvite.count({ where: { roleId: id } }),
+    ]);
+    if (!role) throw new NotFoundError("Role not found.");
+    if (role.isSystem) throw new BadRequestError("Built-in roles can't be deleted.");
+
+    const inUse = userRoleCount + membershipCount + inviteCount;
+    if (inUse > 0) {
+      throw new BadRequestError(
+        `This role is still assigned to ${inUse} ${inUse === 1 ? "place" : "places"} (users, tracker members, or pending invites) — reassign them first.`
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.rolePermission.deleteMany({ where: { roleId: id } }),
+      prisma.role.delete({ where: { id } }),
+    ]);
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return handleApiError(error);
   }

@@ -3,25 +3,36 @@ import { getCurrentUserId } from "@/lib/auth/session";
 import { getGlobalGrants } from "@/lib/rbac/permissions";
 import { prisma } from "@/lib/db";
 import { DashboardShell } from "@/components/DashboardShell";
-import { IconHome, IconLayers, IconShield, IconUsers } from "@/components/icons";
+import { IconHome } from "@/components/icons";
+import { resolveIcon } from "@/lib/icon-registry";
+import { isSafeHref } from "@/lib/rbac/safe-href";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const userId = await getCurrentUserId();
   if (!userId) redirect("/sign-in");
 
-  const [user, grants] = await Promise.all([
+  const [user, grants, globalMenus] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     getGlobalGrants(userId),
+    // Every top-level nav item below "Trackers" comes straight from the
+    // Menu table — add a GLOBAL menu with an href from the Roles &
+    // Permissions screen and it shows up here for whichever roles hold
+    // its :VIEW permission, with no code change.
+    prisma.menu.findMany({
+      where: { scope: "GLOBAL", parentId: null, href: { not: null } },
+      orderBy: { order: "asc" },
+    }),
   ]);
   if (!user) redirect("/sign-in");
 
-  const isPlatformAdmin = grants.has("system_directory:VIEW") || grants.has("roles_permissions:VIEW");
-
   const items = [
     { href: "/trackers", label: "Trackers", icon: <IconHome /> },
-    ...(isPlatformAdmin ? [{ href: "/admin/systems", label: "System directory", icon: <IconLayers /> }] : []),
-    ...(isPlatformAdmin ? [{ href: "/admin/roles", label: "Roles & permissions", icon: <IconShield /> }] : []),
-    ...(grants.has("users:VIEW") ? [{ href: "/admin/users", label: "Users", icon: <IconUsers /> }] : []),
+    ...globalMenus
+      .filter((menu) => grants.has(`${menu.key}:VIEW`) && isSafeHref(menu.href!))
+      .map((menu) => {
+        const Icon = resolveIcon(menu.icon);
+        return { href: menu.href!, label: menu.label, icon: <Icon /> };
+      }),
   ];
 
   return (

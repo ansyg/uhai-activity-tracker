@@ -692,6 +692,30 @@ a:focus-visible {
   align-items: center;
 }
 
+.nav-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 14px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-collapsed .nav-footer {
+  padding: 10px 0 14px;
+  align-items: center;
+}
+
+.nav-footer-account-active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.nav-footer-logout:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .nav-card {
   background: var(--surface);
   border: 1px solid var(--border);

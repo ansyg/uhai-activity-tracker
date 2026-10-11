@@ -30,9 +30,7 @@ interface SidebarProps {
 
 type Row =
   | { kind: "link"; href: string; label: string; icon: React.ReactNode; indent: boolean }
-  | { kind: "group"; label: string; icon: React.ReactNode; expanded: boolean; onToggle: () => void }
-  | { kind: "avatar"; href: string; label: string; initials: string }
-  | { kind: "action"; label: string; icon: React.ReactNode; onClick: () => void };
+  | { kind: "group"; label: string; icon: React.ReactNode; expanded: boolean; onToggle: () => void };
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -84,16 +82,17 @@ export function Sidebar({ items, name, email, collapsed, variant, mobileOpen, on
       }
     }
 
-    out.push({ kind: "avatar", href: "/account", label: name, initials: initials(name) || "?" });
-    out.push({ kind: "action", label: "Logout", icon: <IconLogout size={16} />, onClick: signOut });
-
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, pathname, expanded, name]);
+  }, [items, pathname, expanded]);
 
-  const activeIndex = rows.findIndex(
-    (row) => (row.kind === "link" || row.kind === "avatar") && isActiveHref(row.href, pathname)
-  );
+  // Account + logout live in their own block pinned to the sidebar's
+  // bottom edge (nav-stack above it is flex:1, so this sits below
+  // whatever free space is left) — kept separate from the scrollable nav
+  // list so it reads as "you, and signing out", not just another feature.
+  const onAccount = isActiveHref("/account", pathname);
+
+  const activeIndex = rows.findIndex((row) => row.kind === "link" && isActiveHref(row.href, pathname));
   const before = activeIndex >= 0 ? rows.slice(0, activeIndex) : rows;
   const active = activeIndex >= 0 ? rows[activeIndex] : null;
   const after = activeIndex >= 0 ? rows.slice(activeIndex + 1) : [];
@@ -107,31 +106,15 @@ export function Sidebar({ items, name, email, collapsed, variant, mobileOpen, on
         </Link>
       );
     }
-    if (row.kind === "group") {
-      return (
-        <button key={key} type="button" className="nav-row nav-row-group" onClick={row.onToggle}>
-          <span className="nav-row-group-label">
-            {row.icon}
-            {!collapsed && <span>{row.label}</span>}
-          </span>
-          <span className={`nav-row-chevron ${row.expanded ? "nav-row-chevron-open" : ""}`}>
-            <IconChevronDown />
-          </span>
-        </button>
-      );
-    }
-    if (row.kind === "avatar") {
-      return (
-        <Link key={key} href={row.href} className="nav-row" title={email} onClick={onClose}>
-          <span className="avatar nav-row-avatar">{row.initials}</span>
-          {!collapsed && row.label}
-        </Link>
-      );
-    }
     return (
-      <button key={key} type="button" className="nav-row" onClick={row.onClick}>
-        {row.icon}
-        {!collapsed && row.label}
+      <button key={key} type="button" className="nav-row nav-row-group" onClick={row.onToggle}>
+        <span className="nav-row-group-label">
+          {row.icon}
+          {!collapsed && <span>{row.label}</span>}
+        </span>
+        <span className={`nav-row-chevron ${row.expanded ? "nav-row-chevron-open" : ""}`}>
+          <IconChevronDown />
+        </span>
       </button>
     );
   }
@@ -176,15 +159,11 @@ export function Sidebar({ items, name, email, collapsed, variant, mobileOpen, on
           </div>
         )}
 
-        {active && (active.kind === "link" || active.kind === "avatar") && (
+        {active && active.kind === "link" && (
           <div className="nav-active-wrap">
             {before.length > 0 && <span className="nav-notch nav-notch-top" />}
             <Link href={active.href} className="nav-active-row" onClick={onClose}>
-              {active.kind === "link" ? (
-                <span className="nav-active-icon">{active.icon}</span>
-              ) : (
-                <span className="avatar nav-row-avatar nav-active-avatar">{active.initials}</span>
-              )}
+              <span className="nav-active-icon">{active.icon}</span>
               {!collapsed && active.label}
             </Link>
             {after.length > 0 && <span className="nav-notch nav-notch-bottom" />}
@@ -196,6 +175,22 @@ export function Sidebar({ items, name, email, collapsed, variant, mobileOpen, on
             {after.map((row, i) => renderRow(row, `after-${i}`))}
           </div>
         )}
+      </div>
+
+      <div className="nav-footer">
+        <Link
+          href="/account"
+          className={`nav-row nav-footer-account ${onAccount ? "nav-footer-account-active" : ""}`}
+          title={email}
+          onClick={onClose}
+        >
+          <span className={`avatar nav-row-avatar ${onAccount ? "nav-active-avatar" : ""}`}>{initials(name) || "?"}</span>
+          {!collapsed && name}
+        </Link>
+        <button type="button" className="nav-row nav-footer-logout" onClick={signOut}>
+          <IconLogout size={16} />
+          {!collapsed && "Logout"}
+        </button>
       </div>
     </nav>
   );

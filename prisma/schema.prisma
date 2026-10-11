@@ -167,7 +167,9 @@ model Menu {
   key      String    @unique // e.g. "trackers", "tracker.activities", "tracker.approvals", "system_directory", "roles", "users"
   label    String // display name in the sidebar
   scope    MenuScope
-  icon     String?
+  icon     String? // key into the app's icon registry (src/lib/icon-registry.tsx), not a component
+  href     String? // for a GLOBAL menu that's also a top-level sidebar link; null for TRACKER-scoped feature menus
+  isSystem Boolean   @default(false) // seeded menu: key/scope locked and it can't be deleted, but label/icon/href/order/extra actions are still editable
   parent   Menu?     @relation("MenuChildren", fields: [parentId], references: [id])
   parentId String?
   order    Int       @default(0)

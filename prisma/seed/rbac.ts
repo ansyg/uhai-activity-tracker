@@ -15,6 +15,9 @@ interface MenuSeed {
   label: string;
   scope: MenuScope;
   actions: PermissionAction[];
+  icon?: string; // key into src/lib/icon-registry.tsx
+  href?: string; // present only for a GLOBAL menu that's also a top-level sidebar link
+  order?: number;
 }
 
 const MENUS: MenuSeed[] = [
@@ -45,20 +48,38 @@ const MENUS: MenuSeed[] = [
     scope: "TRACKER",
     actions: ["VIEW", "MANAGE"],
   },
-  // Global: checked against the caller's UserRole(s), app-wide.
+  // Global: checked against the caller's UserRole(s), app-wide. These also
+  // drive the sidebar directly — see (dashboard)/layout.tsx, which renders
+  // one link per GLOBAL menu with an `href` that the caller's grants pass
+  // :VIEW on. Add a menu here (or from the Roles & Permissions screen) and
+  // it appears with no code change.
   {
     key: "system_directory",
     label: "System Directory",
     scope: "GLOBAL",
     actions: ["VIEW", "CREATE", "EDIT", "DELETE"],
+    icon: "layers",
+    href: "/admin/systems",
+    order: 1,
   },
   {
     key: "roles_permissions",
     label: "Roles & Permissions",
     scope: "GLOBAL",
     actions: ["VIEW", "MANAGE"],
+    icon: "shield",
+    href: "/admin/roles",
+    order: 2,
   },
-  { key: "users", label: "Users", scope: "GLOBAL", actions: ["VIEW", "MANAGE"] },
+  {
+    key: "users",
+    label: "Users",
+    scope: "GLOBAL",
+    actions: ["VIEW", "MANAGE"],
+    icon: "users",
+    href: "/admin/users",
+    order: 3,
+  },
 ];
 
 // permission keys granted to each seeded role, as "menu.key:ACTION"
@@ -122,8 +143,16 @@ export async function seedRbac(): Promise<Record<string, string>> {
   for (const menu of MENUS) {
     const createdMenu = await prisma.menu.upsert({
       where: { key: menu.key },
-      update: { label: menu.label, scope: menu.scope },
-      create: { key: menu.key, label: menu.label, scope: menu.scope },
+      update: { label: menu.label, scope: menu.scope, icon: menu.icon, href: menu.href, order: menu.order ?? 0 },
+      create: {
+        key: menu.key,
+        label: menu.label,
+        scope: menu.scope,
+        icon: menu.icon,
+        href: menu.href,
+        order: menu.order ?? 0,
+        isSystem: true,
+      },
     });
 
     for (const action of menu.actions) {

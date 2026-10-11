@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { getGlobalGrants } from "@/lib/rbac/permissions";
 import { NewRoleForm } from "@/components/admin/NewRoleForm";
+import { RolePermissionEditor } from "@/components/admin/RolePermissionEditor";
+import { MenuManager } from "@/components/admin/MenuManager";
 import { BackLink } from "@/components/BackLink";
 
 export default async function RolesPermissionsPage() {
@@ -22,41 +24,64 @@ export default async function RolesPermissionsPage() {
 
   const canManage = grants.has("roles_permissions:MANAGE");
 
+  const menuOptions = menus.map((menu) => ({
+    key: menu.key,
+    label: menu.label,
+    scope: menu.scope,
+    permissions: menu.permissions.map((p) => ({ id: p.id, action: p.action })),
+  }));
+
   return (
     <div style={{ maxWidth: 820 }}>
       <BackLink href="/trackers" label="Trackers" />
       <h1 style={{ marginBottom: 6 }}>Roles & permissions</h1>
       <p className="muted" style={{ marginBottom: 24 }}>
-        Each role bundles together what it can see and do. Built-in roles are marked &quot;system&quot; and
-        keep their name, but you can still adjust what they grant.
+        Menus are features; permissions are actions on a menu; a role bundles permissions together, and a user is
+        given one or more roles. Add a menu, tick it onto a role, and it&apos;s enforceable immediately — no deploy.
       </p>
 
+      <h3 style={{ marginBottom: 12 }}>Roles</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 32 }}>
         {roles.map((role) => (
-          <div key={role.id} className="card" style={{ padding: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <strong>{role.name}</strong>
-              {role.isSystem && <span className="muted" style={{ fontSize: "0.78em" }}>system</span>}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {role.permissions.length === 0 && <span className="muted" style={{ fontSize: "0.85em" }}>No grants.</span>}
-              {role.permissions.map((rp) => (
-                <span key={rp.permissionId} className="badge badge-primary" style={{ fontSize: "0.72em" }}>
-                  {rp.permission.menu.key}:{rp.permission.action}
-                </span>
-              ))}
-            </div>
-          </div>
+          <RolePermissionEditor
+            key={role.id}
+            role={{
+              id: role.id,
+              name: role.name,
+              description: role.description,
+              isSystem: role.isSystem,
+              permissions: role.permissions.map((rp) => ({ permissionId: rp.permissionId })),
+            }}
+            menus={menuOptions}
+            canManage={canManage}
+          />
         ))}
       </div>
 
       {canManage && (
         <>
           <h3 style={{ marginBottom: 12 }}>New custom role</h3>
-          <NewRoleForm
+          <div style={{ marginBottom: 32 }}>
+            <NewRoleForm
+              menus={menus.map((menu) => ({
+                key: menu.key,
+                label: menu.label,
+                permissions: menu.permissions.map((p) => ({ id: p.id, action: p.action })),
+              }))}
+            />
+          </div>
+
+          <h3 style={{ marginBottom: 12 }}>Menus</h3>
+          <MenuManager
             menus={menus.map((menu) => ({
+              id: menu.id,
               key: menu.key,
               label: menu.label,
+              scope: menu.scope,
+              icon: menu.icon,
+              href: menu.href,
+              order: menu.order,
+              isSystem: menu.isSystem,
               permissions: menu.permissions.map((p) => ({ id: p.id, action: p.action })),
             }))}
           />
