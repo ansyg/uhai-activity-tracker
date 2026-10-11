@@ -17,11 +17,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   try {
     const userId = await requireUserId();
     const { id: trackerId } = await params;
-    await loadTrackerForViewer(trackerId, userId);
+    const { isOwner, isApprovedMember } = await loadTrackerForViewer(trackerId, userId);
 
     const data = await loadTrackerReportData(trackerId);
     if (!data) throw new NotFoundError("Tracker not found.");
-    const { tracker, dashboard, phases, members } = data;
+    const { tracker, dashboard, phases } = data;
+    // Member emails are only for people who are themselves on the team —
+    // a public tracker is viewable by anyone signed in, but that shouldn't
+    // leak the roster to non-members (the Members page gates this too).
+    const members = isOwner || isApprovedMember ? data.members : [];
 
     const completionPercent = dashboard.totals.total
       ? Math.round((dashboard.totals.completed / dashboard.totals.total) * 100)
@@ -47,12 +51,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ]);
     XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
 
-    const teamRows = members.map((m) => ({
-      Name: m.user.name,
-      Email: m.user.email,
-      Role: m.role.name,
-    }));
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(teamRows), "Team");
+    if (members.length > 0) {
+      const teamRows = members.map((m) => ({
+        Name: m.user.name,
+        Email: m.user.email,
+        Role: m.role.name,
+      }));
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(teamRows), "Team");
+    }
 
     const phaseRows = dashboard.byPhase.map((phase) => ({
       Phase: phase.name,

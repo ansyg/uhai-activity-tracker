@@ -92,7 +92,7 @@ export default async function TrackerReportPage({ params }: { params: Promise<{ 
           </tbody>
         </table>
 
-        {members.length > 0 && (
+        {(isOwner || isApprovedMember) && members.length > 0 && (
           <>
             <h3 style={{ marginBottom: 10 }}>Team</h3>
             <table className="report-table" style={{ marginBottom: 28 }}>

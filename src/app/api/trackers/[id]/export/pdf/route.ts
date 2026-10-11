@@ -13,12 +13,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   try {
     const userId = await requireUserId();
     const { id: trackerId } = await params;
-    await loadTrackerForViewer(trackerId, userId);
+    const { isOwner, isApprovedMember } = await loadTrackerForViewer(trackerId, userId);
 
     const data = await loadTrackerReportData(trackerId);
     if (!data) throw new NotFoundError("Tracker not found.");
 
-    const buffer = await renderTrackerReportPdf(data);
+    // Member emails are only for people who are themselves on the team —
+    // a public tracker is viewable by anyone signed in, but that shouldn't
+    // leak the roster to non-members (the Members page gates this too).
+    const reportData = isOwner || isApprovedMember ? data : { ...data, members: [] };
+
+    const buffer = await renderTrackerReportPdf(reportData);
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
