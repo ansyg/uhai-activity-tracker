@@ -39,7 +39,7 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
   const canManage = grants.has("tracker.members:MANAGE");
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
       <BackLink href={`/trackers/${trackerId}`} label={tracker.name} />
       <h1 style={{ margin: "0 0 6px" }}>Members</h1>
       <p className="muted" style={{ marginBottom: 24 }}>

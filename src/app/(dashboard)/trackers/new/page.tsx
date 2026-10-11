@@ -16,7 +16,7 @@ export default async function NewTrackerPage() {
   ]);
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
       <BackLink href="/trackers" label="Trackers" />
       <h1 style={{ marginBottom: 6 }}>New tracker</h1>
 

@@ -80,7 +80,7 @@ export function NewActivityForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid var(--border)" }}>
+    <form onSubmit={handleSubmit} style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
       <input
         className="input"
         placeholder="Activity title"

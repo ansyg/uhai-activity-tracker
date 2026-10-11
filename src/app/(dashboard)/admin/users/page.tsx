@@ -35,7 +35,11 @@ export default async function UsersPage() {
     grants.has("users:MANAGE")
       ? prisma.trackerLimitRequest.findMany({
           where: { status: "PENDING" },
-          include: { user: { select: { id: true, name: true, email: true, maxTrackers: true } } },
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, maxTrackers: true },
+            },
+          },
           orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
@@ -66,13 +70,14 @@ export default async function UsersPage() {
   const canManage = grants.has("users:MANAGE");
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <>
       <BackLink href="/trackers" label="Trackers" />
       <h1 style={{ marginBottom: 6 }}>Users</h1>
       <p className="muted" style={{ marginBottom: 24 }}>
-        Everyone registered on the platform, and which trackers they belong to. Anyone can create their own account
-        from the sign-up page — share that link to invite someone. A new signup stays Pending until approved here, and
-        can't create or join a tracker until then.
+        Everyone registered on the platform, and which trackers they belong to.
+        Anyone can create their own account from the sign-up page — share that
+        link to invite someone. A new signup stays Pending until approved here,
+        and can't create or join a tracker until then.
       </p>
 
       <UsersTable
@@ -81,6 +86,6 @@ export default async function UsersPage() {
         currentUserId={userId}
         limitRequests={limitRequestRows}
       />
-    </div>
+    </>
   );
 }

@@ -22,7 +22,7 @@ export default async function SystemDirectoryPage() {
   const canEdit = grants.has("system_directory:EDIT");
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div>
       <BackLink href="/trackers" label="Trackers" />
       <h1 style={{ marginBottom: 6 }}>System directory</h1>
       <p className="muted" style={{ marginBottom: 24 }}>

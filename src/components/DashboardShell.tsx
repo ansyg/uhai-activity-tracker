@@ -68,7 +68,7 @@ export function DashboardShell({
             <NotificationBell />
           </div>
         </header>
-        <main style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 28px 64px" }}>
+        <main style={{ maxWidth: 1440, margin: "0 auto", padding: "28px 28px 64px" }}>
           {subscriptionStatus === "PENDING" && (
             <div
               className="card"

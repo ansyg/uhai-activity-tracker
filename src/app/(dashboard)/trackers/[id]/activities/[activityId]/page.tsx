@@ -1,6 +1,6 @@
 import { BackLink } from "@/components/BackLink";
 import { ActivityComments } from "@/components/trackers/ActivityComments";
-import { ActivityRow } from "@/components/trackers/ActivityRow";
+import { ActivityTitleCell, AssigneesCell, DatesCell, ProgressStatusCell, NotesLinkCell } from "@/components/trackers/ActivityCells";
 import { ActivityDetailsEditor } from "@/components/trackers/ActivityDetailsEditor";
 import { AssigneeManager } from "@/components/trackers/AssigneeManager";
 import { DeleteActivityButton } from "@/components/trackers/DeleteActivityButton";
@@ -149,9 +149,11 @@ export default async function ActivityDetailPage({
       </div>
 
       <div className="card" style={{ overflow: "hidden", marginBottom: 28 }}>
+        <div style={{ overflowX: "auto" }}>
         <table
           style={{
             width: "100%",
+            minWidth: 680,
             borderCollapse: "collapse",
             fontSize: "0.9em",
           }}
@@ -163,20 +165,31 @@ export default async function ActivityDetailPage({
               <th style={{ padding: "10px 14px" }}>Activity</th>
               <th style={{ padding: "10px 14px" }}>Assignees</th>
               <th style={{ padding: "10px 14px" }}>Dates</th>
-              <th style={{ padding: "10px 14px", width: 180 }}>Progress</th>
-              <th style={{ padding: "10px 14px" }}>Status</th>
+              <th style={{ padding: "10px 14px" }}>Progress & status</th>
               <th style={{ padding: "10px 14px", width: 56 }} />
             </tr>
           </thead>
           <tbody>
-            <ActivityRow
-              activity={activity}
-              canEdit={canEdit}
-              trackerId={trackerId}
-              commentCount={activity._count.comments}
-            />
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              <td style={{ padding: "10px 14px" }}>
+                <ActivityTitleCell activity={activity} trackerId={trackerId} />
+              </td>
+              <td style={{ padding: "10px 14px" }}>
+                <AssigneesCell activity={activity} canEdit={canEdit} />
+              </td>
+              <td style={{ padding: "10px 14px" }}>
+                <DatesCell activity={activity} canEdit={canEdit} />
+              </td>
+              <td style={{ padding: "10px 14px" }}>
+                <ProgressStatusCell activity={activity} canEdit={canEdit} />
+              </td>
+              <td style={{ padding: "10px 14px" }}>
+                <NotesLinkCell activity={activity} trackerId={trackerId} commentCount={activity._count.comments} />
+              </td>
+            </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <h3 style={{ marginBottom: 14 }}>Remarks</h3>

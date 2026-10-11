@@ -32,7 +32,7 @@ export default async function RolesPermissionsPage() {
   }));
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div>
       <BackLink href="/trackers" label="Trackers" />
       <h1 style={{ marginBottom: 6 }}>Roles & permissions</h1>
       <p className="muted" style={{ marginBottom: 24 }}>

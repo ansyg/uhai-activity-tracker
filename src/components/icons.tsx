@@ -80,6 +80,31 @@ export function IconChevronDown({ size = 14 }: IconProps) {
   );
 }
 
+export function IconSortNeutral({ size = 12 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base} opacity={0.5}>
+      <path d="m8 9 4-5 4 5" />
+      <path d="m8 15 4 5 4-5" />
+    </svg>
+  );
+}
+
+export function IconSortAsc({ size = 12 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="m6 15 6-6 6 6" />
+    </svg>
+  );
+}
+
+export function IconSortDesc({ size = 12 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...base}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function IconComment({ size = 16 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...base}>

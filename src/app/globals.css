@@ -583,6 +583,17 @@ a:focus-visible {
   background: var(--surface-muted);
 }
 
+/* Lets a too-wide table scroll on its own instead of stretching (or clipping) its card ancestor. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+@media (max-width: 600px) {
+  .report-sheet {
+    padding: 24px 16px;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

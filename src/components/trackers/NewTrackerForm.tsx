@@ -55,7 +55,7 @@ export function NewTrackerForm({ systems }: { systems: SystemOption[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+    <form onSubmit={handleSubmit} className="card" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18, maxWidth: 560 }}>
       <div>
         <label className="field-label" htmlFor="name">
           Name

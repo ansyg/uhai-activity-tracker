@@ -2,12 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { PhaseLane } from "@/components/trackers/PhaseLane";
-import { ActivityRow, type ActivityUpdatePatch } from "@/components/trackers/ActivityRow";
+import { DataTable, type Column, type TableFilter } from "@/components/ui/DataTable";
+import {
+  ActivityTitleCell,
+  AssigneesCell,
+  DatesCell,
+  ProgressStatusCell,
+  NotesLinkCell,
+} from "@/components/trackers/ActivityCells";
 import { NewPhaseForm } from "@/components/trackers/NewPhaseForm";
 import { NewActivityForm } from "@/components/trackers/NewActivityForm";
 import { DeletePhaseButton } from "@/components/trackers/DeletePhaseButton";
 import { PhaseNameEditor } from "@/components/trackers/PhaseNameEditor";
 import { computeDashboardFromActivities } from "@/lib/trackers/dashboard-client";
+import type { ActivityUpdatePatch } from "@/lib/activities/types";
 
 interface Assignee {
   id: string;
@@ -63,14 +71,6 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
   );
 }
 
-function Th({ children, style }: { children?: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <th style={{ padding: "10px 14px", fontWeight: 600, fontSize: "0.85em", borderBottom: "1px solid var(--border)", ...style }}>
-      {children}
-    </th>
-  );
-}
-
 export function TrackerBoard({
   trackerId,
   initialPhases,
@@ -100,6 +100,81 @@ export function TrackerBoard({
   const completionPercent = dashboard.totals.total
     ? Math.round((dashboard.totals.completed / dashboard.totals.total) * 100)
     : 0;
+
+  const activityColumns: Column<ActivityData>[] = useMemo(
+    () => [
+      {
+        key: "title",
+        header: "Activity",
+        sortable: true,
+        width: 220,
+        cell: (activity) => <ActivityTitleCell activity={activity} trackerId={trackerId} />,
+      },
+      {
+        key: "assignees",
+        header: "Assignees",
+        cell: (activity) => <AssigneesCell activity={activity} canEdit={canEditActivities} members={members} />,
+      },
+      {
+        key: "startDate",
+        header: "Dates",
+        sortable: true,
+        width: 300,
+        cell: (activity) => <DatesCell activity={activity} canEdit={canEditActivities} onUpdate={handleActivityUpdate} />,
+      },
+      {
+        key: "statusPercent",
+        header: "Progress & status",
+        sortable: true,
+        width: 220,
+        cell: (activity) => <ProgressStatusCell activity={activity} canEdit={canEditActivities} onUpdate={handleActivityUpdate} />,
+      },
+      {
+        key: "notes",
+        header: "",
+        width: 56,
+        cell: (activity) => <NotesLinkCell activity={activity} trackerId={trackerId} commentCount={activity.commentCount} />,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [trackerId, canEditActivities, members]
+  );
+
+  const activityFilters: TableFilter<ActivityData>[] = useMemo(
+    () => [
+      {
+        key: "status",
+        label: "Status",
+        value: (activity) => activity.status,
+        options: [
+          { value: "NOT_STARTED", label: "Not started" },
+          { value: "IN_PROGRESS", label: "In progress" },
+          { value: "COMPLETED", label: "Completed" },
+        ],
+      },
+      ...(moduleOptions.length > 0
+        ? [
+            {
+              key: "module",
+              label: "Module",
+              value: (activity: ActivityData) => activity.module?.id ?? "",
+              options: moduleOptions.map((m) => ({ value: m.id, label: m.name })),
+            },
+          ]
+        : []),
+    ],
+    [moduleOptions]
+  );
+
+  function getActivitySearchText(activity: ActivityData) {
+    return [
+      activity.title,
+      activity.module?.name,
+      ...activity.assignees.map((a) => a.user?.name ?? a.roleTag),
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
 
   function handleActivityUpdate(activityId: string, patch: ActivityUpdatePatch) {
     setPhases((prev) =>
@@ -177,41 +252,28 @@ export function TrackerBoard({
                 <DeletePhaseButton trackerId={trackerId} phaseId={phase.id} onDeleted={() => handlePhaseDeleted(phase.id)} />
               )}
             </div>
-            <div className="card" style={{ overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9em" }}>
-                <thead>
-                  <tr style={{ textAlign: "left", background: "var(--surface-muted)" }}>
-                    <Th>Activity</Th>
-                    <Th>Assignees</Th>
-                    <Th>Dates</Th>
-                    <Th style={{ width: 180 }}>Progress</Th>
-                    <Th>Status</Th>
-                    <Th style={{ width: 56 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {phase.activities.map((activity) => (
-                    <ActivityRow
-                      key={activity.id}
-                      activity={activity}
-                      canEdit={canEditActivities}
-                      trackerId={trackerId}
-                      commentCount={activity.commentCount}
-                      members={members}
-                      onUpdate={handleActivityUpdate}
-                    />
-                  ))}
-                </tbody>
-              </table>
-              {canCreateActivities && (
-                <NewActivityForm
-                  trackerId={trackerId}
-                  phaseId={phase.id}
-                  modules={moduleOptions}
-                  onCreated={(activity) => handleActivityCreated(phase.id, activity)}
-                />
-              )}
-            </div>
+            <DataTable
+              columns={activityColumns}
+              data={phase.activities}
+              rowKey={(activity) => activity.id}
+              minWidth={900}
+              emptyTitle={phase.activities.length === 0 ? "No activities in this phase yet" : "No activities match"}
+              emptyDescription={phase.activities.length === 0 ? undefined : "Try a different search or filter."}
+              searchable
+              searchPlaceholder="Search activities…"
+              getSearchText={getActivitySearchText}
+              filters={activityFilters}
+              footer={
+                canCreateActivities ? (
+                  <NewActivityForm
+                    trackerId={trackerId}
+                    phaseId={phase.id}
+                    modules={moduleOptions}
+                    onCreated={(activity) => handleActivityCreated(phase.id, activity)}
+                  />
+                ) : undefined
+              }
+            />
           </div>
         ))}
       </div>

@@ -39,7 +39,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
   const canApprove = grants.has("tracker.approvals:APPROVE");
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div>
       <BackLink href={`/trackers/${trackerId}`} label={tracker.name} />
       <h1 style={{ margin: "0 0 6px" }}>Join requests</h1>
       <p className="muted" style={{ marginBottom: 24 }}>

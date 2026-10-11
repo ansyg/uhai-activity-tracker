@@ -133,7 +133,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link className="btn" href={`/reports/${trackerId}`} target="_blank" rel="noreferrer">
             Export report
           </Link>

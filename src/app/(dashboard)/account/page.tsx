@@ -24,7 +24,7 @@ export default async function AccountPage() {
   const signInMethod = user.passwordHash ? "Email and password" : "Google";
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
       <BackLink href="/trackers" label="Trackers" />
       <h1 style={{ marginBottom: 24 }}>Account</h1>
 

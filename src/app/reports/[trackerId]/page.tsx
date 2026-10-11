@@ -142,39 +142,41 @@ export default async function TrackerReportPage({ params }: { params: Promise<{ 
         {phases.map((phase) => (
           <div key={phase.id} style={{ marginBottom: 20, breakInside: "avoid" }}>
             <h4 style={{ marginBottom: 6, fontSize: "0.95em" }}>{phase.name}</h4>
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th>Activity</th>
-                  <th>Assignees</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Progress</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {phase.activities.map((activity) => (
-                  <tr key={activity.id}>
-                    <td>
-                      {activity.title}
-                      {activity.module && <div className="muted" style={{ fontSize: "0.85em" }}>{activity.module.name}</div>}
-                    </td>
-                    <td>
-                      {activity.assignees.length === 0
-                        ? "—"
-                        : activity.assignees.map((a) => a.user?.name ?? a.roleTag).join(", ")}
-                    </td>
-                    <td>{formatDate(activity.startDate)}</td>
-                    <td>{formatDate(activity.endDate)}</td>
-                    <td>{activity.statusPercent}%</td>
-                    <td>
-                      <StatusBadge status={activity.status} />
-                    </td>
+            <div className="table-scroll">
+              <table className="report-table" style={{ minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    <th>Activity</th>
+                    <th>Assignees</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Progress</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {phase.activities.map((activity) => (
+                    <tr key={activity.id}>
+                      <td>
+                        {activity.title}
+                        {activity.module && <div className="muted" style={{ fontSize: "0.85em" }}>{activity.module.name}</div>}
+                      </td>
+                      <td>
+                        {activity.assignees.length === 0
+                          ? "—"
+                          : activity.assignees.map((a) => a.user?.name ?? a.roleTag).join(", ")}
+                      </td>
+                      <td>{formatDate(activity.startDate)}</td>
+                      <td>{formatDate(activity.endDate)}</td>
+                      <td>{activity.statusPercent}%</td>
+                      <td>
+                        <StatusBadge status={activity.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
 
