@@ -88,7 +88,7 @@ export function AssigneeManager({
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: canEdit ? 12 : 0 }}>
         {assignees.length === 0 && <span className="muted">Unassigned</span>}
         {assignees.map((a) => (
-          <span key={a.id} className="badge badge-neutral" style={{ gap: 6 }}>
+          <span key={a.id} className={`badge ${a.user ? "badge-primary" : "badge-neutral"}`} style={{ gap: 6 }}>
             {a.user?.name ?? a.roleTag}
             {canEdit && (
               <button

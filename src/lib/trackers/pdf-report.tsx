@@ -42,6 +42,11 @@ function drawTable(doc: PDFKit.PDFDocument, columns: Column[], rows: Record<stri
       doc.text(col.label, x + 4, y + 4, { width: col.width - 8, lineBreak: false });
       x += col.width;
     }
+    // Each explicit-position .text() call above leaves pdfkit's cursor at
+    // that column's x — reset both back to the table's left edge, or any
+    // later free-flowing .text() call (a heading, a paragraph) inherits
+    // whatever x the last column left behind and wraps into a sliver.
+    doc.x = startX;
     doc.y = y + rowHeight;
   }
 
@@ -57,13 +62,15 @@ function drawTable(doc: PDFKit.PDFDocument, columns: Column[], rows: Record<stri
       x += col.width;
     }
     doc.moveTo(startX, y + rowHeight).lineTo(startX + CONTENT_WIDTH, y + rowHeight).strokeColor(BORDER).lineWidth(0.5).stroke();
+    doc.x = startX;
     doc.y = y + rowHeight;
   }
+  doc.x = startX;
   doc.moveDown(0.6);
 }
 
 export async function renderTrackerReportPdf(data: TrackerReportData): Promise<Buffer> {
-  const { tracker, dashboard, phases } = data;
+  const { tracker, dashboard, phases, members } = data;
   const completionPercent = dashboard.totals.total
     ? Math.round((dashboard.totals.completed / dashboard.totals.total) * 100)
     : 0;
@@ -103,6 +110,22 @@ export async function renderTrackerReportPdf(data: TrackerReportData): Promise<B
     doc.fillColor(MUTED).text(label, MARGIN, y, { continued: false, width: 180 });
     doc.fillColor(INK).font("Helvetica-Bold").text(value, MARGIN + 180, y);
     doc.font("Helvetica");
+  }
+  doc.x = MARGIN;
+
+  if (members.length > 0) {
+    doc.moveDown(1);
+    doc.fillColor(INK).font("Helvetica-Bold").fontSize(13).text("Team");
+    doc.moveDown(0.3);
+    drawTable(
+      doc,
+      [
+        { label: "Name", width: CONTENT_WIDTH * 0.35, get: (r) => String(r.name) },
+        { label: "Email", width: CONTENT_WIDTH * 0.4, get: (r) => String(r.email) },
+        { label: "Role", width: CONTENT_WIDTH * 0.25, get: (r) => String(r.role) },
+      ],
+      members.map((m) => ({ name: m.user.name, email: m.user.email, role: m.role.name }))
+    );
   }
 
   doc.moveDown(1);

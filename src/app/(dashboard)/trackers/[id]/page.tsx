@@ -45,6 +45,11 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
           include: {
             module: { select: { id: true, name: true } },
             assignees: { include: { user: { select: { id: true, name: true } } } },
+            history: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              include: { changedBy: { select: { name: true } } },
+            },
             _count: { select: { comments: true } },
           },
         },
@@ -65,6 +70,8 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
     activities: phase.activities.map((activity) => ({
       ...activity,
       commentCount: activity._count.comments,
+      lastUpdatedBy: activity.history[0]?.changedBy?.name ?? null,
+      lastUpdatedAt: activity.history[0]?.createdAt ?? null,
     })),
   }));
 
@@ -120,6 +127,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
                 name={tracker.name}
                 description={tracker.description}
                 visibility={tracker.visibility}
+                calendarSyncEnabled={tracker.calendarSyncEnabled}
                 canEdit={canEditTracker}
               />
             </div>

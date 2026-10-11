@@ -1,7 +1,10 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { BackLink } from "@/components/BackLink";
+import { CalendarConnectionCard } from "@/components/CalendarConnectionCard";
+import { isGoogleSignInConfigured } from "@/lib/auth/google-config";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -61,6 +64,12 @@ export default async function AccountPage() {
       <p className="muted" style={{ fontSize: "0.85em", marginTop: 16 }}>
         Per-tracker roles (Owner, Admin, Contributor, etc.) are shown on each tracker&apos;s own Members page.
       </p>
+
+      {isGoogleSignInConfigured() && (
+        <Suspense>
+          <CalendarConnectionCard />
+        </Suspense>
+      )}
     </div>
   );
 }

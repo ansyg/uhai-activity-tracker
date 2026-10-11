@@ -7,6 +7,7 @@ import { loadTrackerForViewer } from "@/lib/trackers/access";
 import { statusFromPercent } from "@/lib/activities/status";
 import { isPlausibleIsoDateTime } from "@/lib/dates";
 import { NotFoundError, handleApiError } from "@/lib/api/errors";
+import { syncActivityToCalendar } from "@/lib/calendar/google-calendar";
 
 const isoDate = z
   .string()
@@ -99,6 +100,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       return result;
     });
+
+    const calendarRelevant = ["title", "description", "startDate", "endDate"].some((field) => field in data);
+    if (calendarRelevant) {
+      await syncActivityToCalendar(updated, userId, request.nextUrl.origin).catch((err) =>
+        console.error("Calendar sync failed:", err)
+      );
+    }
 
     return NextResponse.json({ activity: updated });
   } catch (error) {

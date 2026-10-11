@@ -21,7 +21,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     const data = await loadTrackerReportData(trackerId);
     if (!data) throw new NotFoundError("Tracker not found.");
-    const { tracker, dashboard, phases } = data;
+    const { tracker, dashboard, phases, members } = data;
 
     const completionPercent = dashboard.totals.total
       ? Math.round((dashboard.totals.completed / dashboard.totals.total) * 100)
@@ -46,6 +46,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       ["Overdue", dashboard.overdue],
     ]);
     XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+
+    const teamRows = members.map((m) => ({
+      Name: m.user.name,
+      Email: m.user.email,
+      Role: m.role.name,
+    }));
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(teamRows), "Team");
 
     const phaseRows = dashboard.byPhase.map((phase) => ({
       Phase: phase.name,

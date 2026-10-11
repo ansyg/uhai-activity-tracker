@@ -7,6 +7,7 @@ import { loadTrackerForViewer } from "@/lib/trackers/access";
 import { statusFromPercent } from "@/lib/activities/status";
 import { isPlausibleIsoDateTime } from "@/lib/dates";
 import { handleApiError } from "@/lib/api/errors";
+import { syncActivityToCalendar } from "@/lib/calendar/google-calendar";
 import type { ActivityStatus } from "@prisma/client";
 
 const isoDate = z
@@ -88,6 +89,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
       include: { assignees: true },
     });
+
+    await syncActivityToCalendar(activity, userId, request.nextUrl.origin).catch((err) =>
+      console.error("Calendar sync failed:", err)
+    );
 
     return NextResponse.json({ activity }, { status: 201 });
   } catch (error) {

@@ -9,7 +9,7 @@ export async function loadTrackerReportData(trackerId: string) {
   });
   if (!tracker) return null;
 
-  const [dashboard, phases] = await Promise.all([
+  const [dashboard, phases, members] = await Promise.all([
     computeTrackerDashboard(trackerId),
     prisma.phase.findMany({
       where: { trackerId },
@@ -24,9 +24,14 @@ export async function loadTrackerReportData(trackerId: string) {
         },
       },
     }),
+    prisma.trackerMembership.findMany({
+      where: { trackerId, status: "APPROVED" },
+      include: { user: { select: { name: true, email: true } }, role: { select: { name: true } } },
+      orderBy: { requestedAt: "asc" },
+    }),
   ]);
 
-  return { tracker, dashboard, phases };
+  return { tracker, dashboard, phases, members };
 }
 
 export type TrackerReportData = NonNullable<Awaited<ReturnType<typeof loadTrackerReportData>>>;

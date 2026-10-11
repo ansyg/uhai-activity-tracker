@@ -25,6 +25,8 @@ interface ActivityData {
   module: { id: string; name: string } | null;
   assignees: Assignee[];
   commentCount: number;
+  lastUpdatedBy?: string | null;
+  lastUpdatedAt?: string | Date | null;
 }
 
 interface PhaseData {

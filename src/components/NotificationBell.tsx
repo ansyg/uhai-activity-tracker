@@ -38,6 +38,10 @@ function describe(notification: NotificationRow): { text: string; href?: string 
       return { text: `An activity in ${trackerName} is overdue.`, href: trackerHref };
     case "COMMENT_MENTION":
       return { text: `You were mentioned in ${trackerName}.`, href: trackerHref };
+    case "CALENDAR_SYNC_FAILED": {
+      const activityTitle = typeof p.activityTitle === "string" ? p.activityTitle : "an activity";
+      return { text: `Couldn't sync "${activityTitle}" to Google Calendar.`, href: trackerHref };
+    }
     case "TRACKER_LIMIT_REQUESTED": {
       const requesterName = typeof p.requesterName === "string" ? p.requesterName : "Someone";
       const requestedMax = typeof p.requestedMax === "number" ? p.requestedMax : "more";

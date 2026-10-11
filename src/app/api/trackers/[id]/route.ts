@@ -47,9 +47,10 @@ const PatchTrackerSchema = z.object({
   visibility: z.enum(["PUBLIC", "PRIVATE"]).optional(),
   startDate: isoDate.nullable().optional(),
   endDate: isoDate.nullable().optional(),
+  calendarSyncEnabled: z.boolean().optional(),
 });
 
-/** Owner/Admin can edit the tracker's own settings — name, description, visibility, and its planned start/end. */
+/** Owner/Admin can edit the tracker's own settings — name, description, visibility, its planned start/end, and Calendar sync. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await requireUserId();
@@ -64,6 +65,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.visibility !== undefined) data.visibility = body.visibility;
     if (body.startDate !== undefined) data.startDate = body.startDate ? new Date(body.startDate) : null;
     if (body.endDate !== undefined) data.endDate = body.endDate ? new Date(body.endDate) : null;
+    if (body.calendarSyncEnabled !== undefined) data.calendarSyncEnabled = body.calendarSyncEnabled;
 
     const tracker = await prisma.tracker.update({ where: { id: trackerId }, data });
 

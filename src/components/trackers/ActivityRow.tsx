@@ -24,6 +24,8 @@ interface ActivityData {
   endDate: string | Date | null;
   module: { id: string; name: string } | null;
   assignees: Assignee[];
+  lastUpdatedBy?: string | null;
+  lastUpdatedAt?: string | Date | null;
 }
 
 interface MemberOption {
@@ -124,7 +126,13 @@ export function ActivityRow({
         ) : assignees.length === 0 ? (
           <span className="muted">—</span>
         ) : (
-          assignees.map((a) => a.user?.name ?? a.roleTag).join(", ")
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {assignees.map((a) => (
+              <span key={a.id} className={`badge ${a.user ? "badge-primary" : "badge-neutral"}`} style={{ fontSize: "0.78em" }}>
+                {a.user?.name ?? a.roleTag}
+              </span>
+            ))}
+          </div>
         )}
         {canEdit && members && (
           <button
@@ -192,6 +200,11 @@ export function ActivityRow({
           </div>
         )}
         {error && <div className="error-text" style={{ fontSize: "0.78em" }}>{error}</div>}
+        {activity.lastUpdatedBy && (
+          <div className="muted" style={{ fontSize: "0.72em", marginTop: 3 }}>
+            by {activity.lastUpdatedBy}
+          </div>
+        )}
       </td>
       <td style={{ padding: "10px 14px" }}>
         <StatusBadge status={status} />

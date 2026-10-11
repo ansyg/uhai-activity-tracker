@@ -9,12 +9,14 @@ export function TrackerSettingsEditor({
   name: initialName,
   description: initialDescription,
   visibility: initialVisibility,
+  calendarSyncEnabled: initialCalendarSyncEnabled,
   canEdit,
 }: {
   trackerId: string;
   name: string;
   description: string | null;
   visibility: "PUBLIC" | "PRIVATE";
+  calendarSyncEnabled: boolean;
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -22,6 +24,7 @@ export function TrackerSettingsEditor({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? "");
   const [visibility, setVisibility] = useState(initialVisibility);
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(initialCalendarSyncEnabled);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +33,12 @@ export function TrackerSettingsEditor({
     setSaving(true);
     setError(null);
     try {
-      await api.patch(`/api/trackers/${trackerId}`, { name, description: description || null, visibility });
+      await api.patch(`/api/trackers/${trackerId}`, {
+        name,
+        description: description || null,
+        visibility,
+        calendarSyncEnabled,
+      });
       setEditing(false);
       router.refresh();
     } catch (err) {
@@ -70,6 +78,23 @@ export function TrackerSettingsEditor({
             </label>
           ))}
         </div>
+      </div>
+      <div>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: "0.9em" }}>
+          <input
+            type="checkbox"
+            checked={calendarSyncEnabled}
+            onChange={(e) => setCalendarSyncEnabled(e.target.checked)}
+            style={{ marginTop: 3, flexShrink: 0 }}
+          />
+          <span>
+            Sync activity dates to Google Calendar
+            <br />
+            <span className="muted" style={{ fontSize: "0.85em" }}>
+              Each member with Calendar connected (Account page) gets activities synced to their own calendar.
+            </span>
+          </span>
+        </label>
       </div>
       {error && <p className="error-text">{error}</p>}
       <div style={{ display: "flex", gap: 8 }}>

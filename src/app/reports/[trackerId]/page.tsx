@@ -23,7 +23,7 @@ export default async function TrackerReportPage({ params }: { params: Promise<{ 
 
   const data = await loadTrackerReportData(trackerId);
   if (!data) notFound();
-  const { tracker, dashboard, phases } = data;
+  const { tracker, dashboard, phases, members } = data;
 
   const isOwner = tracker.ownerId === userId;
   const isApprovedMember = membership?.status === "APPROVED";
@@ -91,6 +91,30 @@ export default async function TrackerReportPage({ params }: { params: Promise<{ 
             </tr>
           </tbody>
         </table>
+
+        {members.length > 0 && (
+          <>
+            <h3 style={{ marginBottom: 10 }}>Team</h3>
+            <table className="report-table" style={{ marginBottom: 28 }}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((m) => (
+                  <tr key={m.userId}>
+                    <td>{m.user.name}</td>
+                    <td>{m.user.email}</td>
+                    <td>{m.role.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
         <h3 style={{ marginBottom: 10 }}>Progress by phase</h3>
         <table className="report-table" style={{ marginBottom: 28 }}>
