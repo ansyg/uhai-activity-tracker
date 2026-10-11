@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/api/guard";
+import { requireApprovedSubscription } from "@/lib/auth/subscription";
 import { BadRequestError, handleApiError } from "@/lib/api/errors";
 
 /** Mine (owned or a member of, any status) plus every PUBLIC tracker I could request to join. */
@@ -58,14 +59,29 @@ const CreateTrackerSchema = z.object({
     .default([]),
 });
 
-/** Any signed-in user can create a tracker; the creator becomes its OWNER (ARCHITECTURE.md §3). */
+/**
+ * Any APPROVED signed-in user can create a tracker, up to their maxTrackers
+ * cap; the creator becomes its OWNER (ARCHITECTURE.md §3). A brand new
+ * account starts PENDING and can't create one until a Platform Admin
+ * approves it — see requireApprovedSubscription.
+ */
 export async function POST(request: NextRequest) {
   try {
     const userId = await requireUserId();
+    await requireApprovedSubscription(userId);
     const body = CreateTrackerSchema.parse(await request.json());
 
-    const ownerRole = await prisma.role.findUnique({ where: { name: "Owner" } });
+    const [ownerRole, user, ownedCount] = await Promise.all([
+      prisma.role.findUnique({ where: { name: "Owner" } }),
+      prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { maxTrackers: true } }),
+      prisma.tracker.count({ where: { ownerId: userId } }),
+    ]);
     if (!ownerRole) throw new BadRequestError("RBAC is not seeded — run `npm run seed` first.");
+    if (ownedCount >= user.maxTrackers) {
+      throw new BadRequestError(
+        `You've reached your limit of ${user.maxTrackers} tracker${user.maxTrackers === 1 ? "" : "s"}. Request a higher limit from the platform owner to create more.`
+      );
+    }
 
     const tracker = await prisma.tracker.create({
       data: {

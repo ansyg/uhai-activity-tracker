@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/api/guard";
+import { requireApprovedSubscription } from "@/lib/auth/subscription";
 import { createNotification } from "@/lib/notifications/create";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors";
 
 export async function GET(request: NextRequest) {
   try {
     const userId = await requireUserId();
+    await requireApprovedSubscription(userId);
     const token = request.nextUrl.searchParams.get("token");
     if (!token) throw new BadRequestError("Missing invite token.");
 

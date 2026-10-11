@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ];
 
   return (
-    <DashboardShell items={items} name={user.name} email={user.email}>
+    <DashboardShell items={items} name={user.name} email={user.email} subscriptionStatus={user.subscriptionStatus}>
       {children}
     </DashboardShell>
   );

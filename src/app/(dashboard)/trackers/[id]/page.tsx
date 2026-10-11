@@ -35,7 +35,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
   const isApprovedMember = membership?.status === "APPROVED";
   if (tracker.visibility === "PRIVATE" && !isOwner && !isApprovedMember) notFound();
 
-  const [phases, grants, approvedMembers] = await Promise.all([
+  const [phases, grants, approvedMembers, pendingRequestCount] = await Promise.all([
     prisma.phase.findMany({
       where: { trackerId },
       orderBy: { sequence: "asc" },
@@ -55,6 +55,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
       where: { trackerId, status: "APPROVED" },
       select: { user: { select: { id: true, name: true } } },
     }),
+    prisma.trackerMembership.count({ where: { trackerId, status: "PENDING" } }),
   ]);
 
   const boardPhases = phases.map((phase) => ({
@@ -131,11 +132,17 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
           {canViewApprovals && (
             <Link className="btn" href={`/trackers/${trackerId}/approvals`}>
               Join requests
+              <span className="badge badge-neutral" style={{ marginLeft: 8 }}>
+                {pendingRequestCount}
+              </span>
             </Link>
           )}
           {canManageMembers && (
             <Link className="btn" href={`/trackers/${trackerId}/members`}>
               Members
+              <span className="badge badge-neutral" style={{ marginLeft: 8 }}>
+                {approvedMembers.length}
+              </span>
             </Link>
           )}
         </div>

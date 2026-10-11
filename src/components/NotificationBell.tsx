@@ -12,33 +12,49 @@ interface NotificationRow {
   createdAt: string;
 }
 
-function describe(notification: NotificationRow): { text: string; trackerId?: string } {
+function describe(notification: NotificationRow): { text: string; href?: string } {
   const p = notification.payload;
   const trackerName = typeof p.trackerName === "string" ? p.trackerName : "a tracker";
   const trackerId = typeof p.trackerId === "string" ? p.trackerId : undefined;
+  const trackerHref = trackerId ? `/trackers/${trackerId}` : undefined;
 
   switch (notification.type) {
     case "JOIN_REQUESTED":
-      return { text: `Someone asked to join ${trackerName}.`, trackerId };
+      return { text: `Someone asked to join ${trackerName}.`, href: trackerHref };
     case "JOIN_DECIDED":
       return {
         text: p.decision === "approve" ? `You were approved to join ${trackerName}.` : `Your request to join ${trackerName} was declined.`,
-        trackerId,
+        href: trackerHref,
       };
     case "INVITE_ACCEPTED":
-      return { text: `Your invite to ${trackerName} was accepted.`, trackerId };
+      return { text: `Your invite to ${trackerName} was accepted.`, href: trackerHref };
     case "ACTIVITY_ASSIGNED":
-      return { text: `You were assigned an activity in ${trackerName}.`, trackerId };
+      return { text: `You were assigned an activity in ${trackerName}.`, href: trackerHref };
     case "STATUS_CHANGED":
-      return { text: `An activity's status changed in ${trackerName}.`, trackerId };
+      return { text: `An activity's status changed in ${trackerName}.`, href: trackerHref };
     case "DEADLINE_DUE_SOON":
-      return { text: `An activity in ${trackerName} is due soon.`, trackerId };
+      return { text: `An activity in ${trackerName} is due soon.`, href: trackerHref };
     case "DEADLINE_OVERDUE":
-      return { text: `An activity in ${trackerName} is overdue.`, trackerId };
+      return { text: `An activity in ${trackerName} is overdue.`, href: trackerHref };
     case "COMMENT_MENTION":
-      return { text: `You were mentioned in ${trackerName}.`, trackerId };
+      return { text: `You were mentioned in ${trackerName}.`, href: trackerHref };
+    case "TRACKER_LIMIT_REQUESTED": {
+      const requesterName = typeof p.requesterName === "string" ? p.requesterName : "Someone";
+      const requestedMax = typeof p.requestedMax === "number" ? p.requestedMax : "more";
+      return { text: `${requesterName} asked for a limit of ${requestedMax} trackers.`, href: "/admin/users" };
+    }
+    case "TRACKER_LIMIT_DECIDED": {
+      const requestedMax = typeof p.requestedMax === "number" ? p.requestedMax : "more";
+      return {
+        text:
+          p.decision === "approve"
+            ? `You were approved for up to ${requestedMax} trackers.`
+            : `Your request for ${requestedMax} trackers was declined.`,
+        href: "/trackers",
+      };
+    }
     default:
-      return { text: `Update in ${trackerName}.`, trackerId };
+      return { text: `Update in ${trackerName}.`, href: trackerHref };
   }
 }
 
@@ -78,9 +94,9 @@ export function NotificationBell() {
       await api.patch(`/api/notifications/${notification.id}/read`).catch(() => {});
       setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, readAt: new Date().toISOString() } : n)));
     }
-    const { trackerId } = describe(notification);
+    const { href } = describe(notification);
     setOpen(false);
-    if (trackerId) router.push(`/trackers/${trackerId}`);
+    if (href) router.push(href);
   }
 
   return (

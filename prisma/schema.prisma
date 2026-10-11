@@ -30,6 +30,21 @@ enum InviteStatus {
   REVOKED
 }
 
+// A brand new signup starts PENDING and is blocked from creating a tracker,
+// requesting to join one, or accepting an invite until a Platform Admin
+// approves the account (see requireApprovedSubscription).
+enum SubscriptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TrackerLimitRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum MenuScope {
   GLOBAL // platform-wide feature, checked against the user's UserRole(s)
   TRACKER // per-tracker feature, checked against the user's TrackerMembership.role for that tracker
@@ -66,6 +81,8 @@ enum NotificationType {
   DEADLINE_OVERDUE
   COMMENT_MENTION
   CALENDAR_SYNC_FAILED
+  TRACKER_LIMIT_REQUESTED
+  TRACKER_LIMIT_DECIDED
 }
 
 enum NotificationChannel {
@@ -86,6 +103,8 @@ model User {
   avatarUrl    String?
   googleId     String?  @unique
   isActive     Boolean  @default(true) // a deactivated account can't sign in or have its session refreshed (ARCHITECTURE.md §5)
+  subscriptionStatus SubscriptionStatus @default(PENDING) // gates tracker creation/joining until a Platform Admin approves
+  maxTrackers        Int                @default(3) // how many trackers this user may own; see TrackerLimitRequest to raise it
   createdAt    DateTime @default(now())
 
   ownedTrackers      Tracker[]           @relation("TrackerOwner")
@@ -100,6 +119,23 @@ model User {
   notifications      Notification[]
   notificationPrefs  NotificationPreference[]
   refreshTokens      RefreshToken[]
+  trackerLimitRequests        TrackerLimitRequest[] @relation("LimitRequester")
+  decidedTrackerLimitRequests TrackerLimitRequest[] @relation("LimitRequestDecider")
+}
+
+// A user's ask to raise their maxTrackers above the default cap, reviewed by
+// a Platform Admin (users:MANAGE). requestedMax is the new total, not a delta.
+model TrackerLimitRequest {
+  id           String                    @id @default(cuid())
+  user         User                      @relation("LimitRequester", fields: [userId], references: [id])
+  userId       String
+  requestedMax Int
+  reason       String?
+  status       TrackerLimitRequestStatus @default(PENDING)
+  decidedBy    User?                     @relation("LimitRequestDecider", fields: [decidedById], references: [id])
+  decidedById  String?
+  decidedAt    DateTime?
+  createdAt    DateTime                  @default(now())
 }
 
 // Backs the rotating refresh token described in ARCHITECTURE.md §5/§11:

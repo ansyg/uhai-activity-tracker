@@ -20,12 +20,21 @@ export class BadRequestError extends Error {
   }
 }
 
+export class SubscriptionPendingError extends Error {
+  constructor(message = "Your account is awaiting approval from the platform owner before you can do that.") {
+    super(message);
+  }
+}
+
 /** Maps a thrown error to the right HTTP status in one place, for every API route's catch block. */
 export function handleApiError(error: unknown): NextResponse {
   if (error instanceof UnauthorizedError) {
     return NextResponse.json({ error: error.message }, { status: 401 });
   }
   if (error instanceof ForbiddenError) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+  if (error instanceof SubscriptionPendingError) {
     return NextResponse.json({ error: error.message }, { status: 403 });
   }
   if (error instanceof NotFoundError) {

@@ -76,7 +76,7 @@ export async function seedTrackerFromExcel(roleIdByName: Record<string, string>)
   const owner = await prisma.user.upsert({
     where: { email: ownerEmail },
     update: {},
-    create: { email: ownerEmail, name: "Tracker Owner" },
+    create: { email: ownerEmail, name: "Tracker Owner", subscriptionStatus: "APPROVED" },
   });
 
   const TRACKER_NAME = "Afya Maoni x GOTHOMIS Integration";

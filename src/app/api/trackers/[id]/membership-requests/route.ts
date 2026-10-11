@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/api/guard";
+import { requireApprovedSubscription } from "@/lib/auth/subscription";
 import { createNotifications } from "@/lib/notifications/create";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors";
 
@@ -8,6 +9,7 @@ import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const userId = await requireUserId();
+    await requireApprovedSubscription(userId);
     const { id: trackerId } = await params;
 
     const tracker = await prisma.tracker.findUnique({ where: { id: trackerId } });

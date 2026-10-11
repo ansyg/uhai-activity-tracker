@@ -5,29 +5,40 @@ import { requireUserId } from "@/lib/api/guard";
 import { requireGlobalGrant } from "@/lib/rbac/permissions";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors";
 
-const PatchUserSchema = z.object({
-  isActive: z.boolean(),
-});
+const PatchUserSchema = z
+  .object({
+    isActive: z.boolean().optional(),
+    subscriptionStatus: z.enum(["APPROVED", "REJECTED"]).optional(),
+  })
+  .refine((body) => body.isActive !== undefined || body.subscriptionStatus !== undefined, {
+    message: "Nothing to update.",
+  });
 
-/** Platform Admin only: activate/deactivate a platform account. */
+/** Platform Admin only: activate/deactivate an account, or decide its pending platform subscription. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const callerId = await requireUserId();
     await requireGlobalGrant(callerId, "users", "MANAGE");
 
     const { id: targetUserId } = await params;
-    if (targetUserId === callerId) {
+    const body = PatchUserSchema.parse(await request.json());
+
+    if (body.isActive !== undefined && targetUserId === callerId) {
       throw new BadRequestError("You can't deactivate your own account.");
     }
 
     const target = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundError("User not found.");
 
-    const { isActive } = PatchUserSchema.parse(await request.json());
-
     const user = await prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({ where: { id: targetUserId }, data: { isActive } });
-      if (!isActive) {
+      const updated = await tx.user.update({
+        where: { id: targetUserId },
+        data: {
+          ...(body.isActive !== undefined && { isActive: body.isActive }),
+          ...(body.subscriptionStatus !== undefined && { subscriptionStatus: body.subscriptionStatus }),
+        },
+      });
+      if (body.isActive === false) {
         // Deactivating cuts off new sessions immediately; an already-issued
         // access token still runs out naturally within its own ~15 min life.
         await tx.refreshToken.updateMany({
@@ -38,7 +49,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return updated;
     });
 
-    return NextResponse.json({ user: { id: user.id, isActive: user.isActive } });
+    return NextResponse.json({
+      user: { id: user.id, isActive: user.isActive, subscriptionStatus: user.subscriptionStatus },
+    });
   } catch (error) {
     return handleApiError(error);
   }
