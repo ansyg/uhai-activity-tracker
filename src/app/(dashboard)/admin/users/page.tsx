@@ -12,7 +12,7 @@ export default async function UsersPage() {
   const grants = await getGlobalGrants(userId);
   if (!grants.has("users:VIEW")) notFound();
 
-  const [users, limitRequests] = await Promise.all([
+  const [users, limitRequests, pendingInvites] = await Promise.all([
     prisma.user.findMany({
       select: {
         id: true,
@@ -43,7 +43,21 @@ export default async function UsersPage() {
           orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
+    // Keyed by email (not a User relation — the recipient may not have an
+    // account yet) so approving a pending signup can show it'll also seat
+    // them into these trackers (see users/[id]/route.ts's auto-accept).
+    prisma.trackerInvite.findMany({
+      where: { status: "PENDING", expiresAt: { gt: new Date() } },
+      select: { email: true, tracker: { select: { name: true } } },
+    }),
   ]);
+
+  const pendingInviteTrackersByEmail = new Map<string, string[]>();
+  for (const invite of pendingInvites) {
+    const list = pendingInviteTrackersByEmail.get(invite.email) ?? [];
+    list.push(invite.tracker.name);
+    pendingInviteTrackersByEmail.set(invite.email, list);
+  }
 
   const rows = users.map((user) => ({
     id: user.id,
@@ -57,6 +71,7 @@ export default async function UsersPage() {
     signInMethod: user.passwordHash ? "Email and password" : "Google",
     globalRoles: user.globalRoles.map((r) => r.role.name),
     trackers: user.trackerMemberships.map((m) => m.tracker),
+    pendingInviteTrackers: pendingInviteTrackersByEmail.get(user.email) ?? [],
   }));
 
   const limitRequestRows = limitRequests.map((r) => ({

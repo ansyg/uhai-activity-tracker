@@ -17,6 +17,8 @@ interface UserRow {
   signInMethod: string;
   globalRoles: string[];
   trackers: { id: string; name: string }[];
+  /** Tracker names with a PENDING invite out to this email — approving seats them in automatically. */
+  pendingInviteTrackers: string[];
 }
 
 interface LimitRequestRow {
@@ -205,11 +207,22 @@ export function UsersTable({
       key: "subscriptionStatus",
       header: "Subscription",
       sortable: true,
-      width: 160,
+      width: 180,
       cell: (user) => (
-        <span className={`badge ${SUBSCRIPTION_BADGE[user.subscriptionStatus]}`}>
-          {user.subscriptionStatus === "PENDING" ? "Approval pending" : user.subscriptionStatus === "APPROVED" ? "Approved" : "Rejected"}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+          <span className={`badge ${SUBSCRIPTION_BADGE[user.subscriptionStatus]}`}>
+            {user.subscriptionStatus === "PENDING" ? "Approval pending" : user.subscriptionStatus === "APPROVED" ? "Approved" : "Rejected"}
+          </span>
+          {user.subscriptionStatus === "PENDING" && user.pendingInviteTrackers.length > 0 && (
+            <span
+              className="badge badge-primary"
+              style={{ fontSize: "0.76em" }}
+              title={`Approving will also add them to: ${user.pendingInviteTrackers.join(", ")}`}
+            >
+              Invited to {user.pendingInviteTrackers.length} tracker{user.pendingInviteTrackers.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       ),
     },
     {

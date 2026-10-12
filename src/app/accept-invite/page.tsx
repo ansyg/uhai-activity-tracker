@@ -10,6 +10,7 @@ type Outcome =
   | { state: "loading" }
   | { state: "signed-out" }
   | { state: "error"; message: string }
+  | { state: "pending-approval"; trackerName: string }
   | { state: "accepted"; trackerId: string; trackerName: string };
 
 function AcceptInviteContent() {
@@ -31,10 +32,14 @@ function AcceptInviteContent() {
       }
 
       try {
-        const result = await api.get<{ tracker: { id: string; name: string } }>(
+        const result = await api.get<{ status: "accepted" | "pending-approval"; tracker: { id: string; name: string } }>(
           `/api/accept-invite?token=${encodeURIComponent(token)}`
         );
-        setOutcome({ state: "accepted", trackerId: result.tracker.id, trackerName: result.tracker.name });
+        if (result.status === "pending-approval") {
+          setOutcome({ state: "pending-approval", trackerName: result.tracker.name });
+        } else {
+          setOutcome({ state: "accepted", trackerId: result.tracker.id, trackerName: result.tracker.name });
+        }
       } catch (err) {
         setOutcome({ state: "error", message: err instanceof ApiError ? err.message : "Something went wrong." });
       }
@@ -75,6 +80,16 @@ function AcceptInviteContent() {
                 Create account
               </Link>
             </div>
+          </>
+        )}
+
+        {outcome.state === "pending-approval" && (
+          <>
+            <h2 style={{ marginBottom: 8 }}>Almost there</h2>
+            <p className="muted" style={{ marginBottom: 20 }}>
+              Your account is awaiting approval from the platform admin. Once approved, you&apos;ll automatically get
+              access to <strong>{outcome.trackerName}</strong> — no need to revisit this link.
+            </p>
           </>
         )}
 

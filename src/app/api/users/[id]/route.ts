@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/api/guard";
 import { requireGlobalGrant } from "@/lib/rbac/permissions";
+import { createNotification } from "@/lib/notifications/create";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors";
 
 const PatchUserSchema = z
@@ -30,7 +31,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const target = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundError("User not found.");
 
-    const user = await prisma.$transaction(async (tx) => {
+    const { user, acceptedInvites } = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { id: targetUserId },
         data: {
@@ -46,8 +47,43 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           data: { revokedAt: new Date() },
         });
       }
-      return updated;
+
+      // Approval unblocks any tracker invites this person was sent before (or
+      // while) their account was pending — complete them now instead of
+      // leaving the invitee to remember to revisit the original email link.
+      const acceptedInvites: { trackerId: string; trackerName: string; invitedById: string }[] = [];
+      if (body.subscriptionStatus === "APPROVED") {
+        const pendingInvites = await tx.trackerInvite.findMany({
+          where: { email: target.email, status: "PENDING", expiresAt: { gt: new Date() } },
+          include: { tracker: { select: { name: true } } },
+        });
+        for (const invite of pendingInvites) {
+          await tx.trackerMembership.upsert({
+            where: { trackerId_userId: { trackerId: invite.trackerId, userId: targetUserId } },
+            update: { status: "APPROVED", roleId: invite.roleId, decidedAt: new Date() },
+            create: {
+              trackerId: invite.trackerId,
+              userId: targetUserId,
+              roleId: invite.roleId,
+              status: "APPROVED",
+              decidedAt: new Date(),
+            },
+          });
+          await tx.trackerInvite.update({ where: { id: invite.id }, data: { status: "ACCEPTED" } });
+          acceptedInvites.push({ trackerId: invite.trackerId, trackerName: invite.tracker.name, invitedById: invite.invitedById });
+        }
+      }
+
+      return { user: updated, acceptedInvites };
     });
+
+    for (const invite of acceptedInvites) {
+      await createNotification(invite.invitedById, "INVITE_ACCEPTED", {
+        trackerId: invite.trackerId,
+        trackerName: invite.trackerName,
+        acceptedBy: targetUserId,
+      });
+    }
 
     return NextResponse.json({
       user: { id: user.id, isActive: user.isActive, subscriptionStatus: user.subscriptionStatus },
