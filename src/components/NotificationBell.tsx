@@ -12,6 +12,12 @@ interface NotificationRow {
   createdAt: string;
 }
 
+/** Deep-links to the specific activity when the payload carries one, falling back to the tracker page. */
+function activityHref(p: Record<string, unknown>, trackerId: string | undefined, trackerHref: string | undefined) {
+  const activityId = typeof p.activityId === "string" ? p.activityId : undefined;
+  return activityId && trackerId ? `/trackers/${trackerId}/activities/${activityId}` : trackerHref;
+}
+
 function describe(notification: NotificationRow): { text: string; href?: string } {
   const p = notification.payload;
   const trackerName = typeof p.trackerName === "string" ? p.trackerName : "a tracker";
@@ -32,12 +38,22 @@ function describe(notification: NotificationRow): { text: string; href?: string 
       return { text: `You were assigned an activity in ${trackerName}.`, href: trackerHref };
     case "STATUS_CHANGED":
       return { text: `An activity's status changed in ${trackerName}.`, href: trackerHref };
-    case "DEADLINE_DUE_SOON":
-      return { text: `An activity in ${trackerName} is due soon.`, href: trackerHref };
-    case "DEADLINE_OVERDUE":
-      return { text: `An activity in ${trackerName} is overdue.`, href: trackerHref };
-    case "COMMENT_MENTION":
-      return { text: `You were mentioned in ${trackerName}.`, href: trackerHref };
+    case "DEADLINE_DUE_SOON": {
+      const activityTitle = typeof p.activityTitle === "string" ? p.activityTitle : "An activity";
+      return { text: `"${activityTitle}" in ${trackerName} is due soon.`, href: activityHref(p, trackerId, trackerHref) };
+    }
+    case "DEADLINE_OVERDUE": {
+      const activityTitle = typeof p.activityTitle === "string" ? p.activityTitle : "An activity";
+      return { text: `"${activityTitle}" in ${trackerName} is overdue.`, href: activityHref(p, trackerId, trackerHref) };
+    }
+    case "COMMENT_MENTION": {
+      const activityTitle = typeof p.activityTitle === "string" ? p.activityTitle : "an activity";
+      const mentionedByName = typeof p.mentionedByName === "string" ? p.mentionedByName : "Someone";
+      return {
+        text: `${mentionedByName} mentioned you on "${activityTitle}" in ${trackerName}.`,
+        href: activityHref(p, trackerId, trackerHref),
+      };
+    }
     case "CALENDAR_SYNC_FAILED": {
       const activityTitle = typeof p.activityTitle === "string" ? p.activityTitle : "an activity";
       return { text: `Couldn't sync "${activityTitle}" to Google Calendar.`, href: trackerHref };

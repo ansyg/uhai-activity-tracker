@@ -114,6 +114,7 @@ model User {
   activityAssignments ActivityAssignee[]
   activityHistory    ActivityHistory[]
   comments           Comment[]
+  attachments        Attachment[]
   devices            Device[]
   calendarConnection CalendarConnection?
   notifications      Notification[]
@@ -396,6 +397,22 @@ model Activity {
   comments       Comment[]
   attachments    Attachment[]
   calendarEvents CalendarEventMap[]
+  checklistItems ChecklistItem[]
+}
+
+// A lightweight sub-task list inside one activity (e.g. "GOTHOMIS field
+// mapping" as one activity with a 6-item checklist) — distinct from Phase,
+// which groups activities at the tracker level, not within a single one.
+model ChecklistItem {
+  id         String   @id @default(cuid())
+  activity   Activity @relation(fields: [activityId], references: [id])
+  activityId String
+  text       String
+  done       Boolean  @default(false)
+  sequence   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([activityId])
 }
 
 // Links an activity to a user and/or a free-text role tag (e.g. "Backend",
@@ -436,12 +453,18 @@ model Comment {
 }
 
 model Attachment {
-  id         String   @id @default(cuid())
-  activity   Activity @relation(fields: [activityId], references: [id])
-  activityId String
-  fileUrl    String
-  uploadedBy String
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  activity     Activity @relation(fields: [activityId], references: [id])
+  activityId   String
+  fileName     String
+  fileUrl      String
+  contentType  String
+  fileSize     Int
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@index([activityId])
 }
 
 // ---------------------------------------------------------------------------

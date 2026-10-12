@@ -1109,3 +1109,58 @@ a:focus-visible {
     display: none;
   }
 }
+
+/* ---------- timeline / gantt ---------- */
+
+.gantt-label {
+  color: var(--ink);
+  display: block;
+}
+
+.gantt-label:hover {
+  color: var(--primary);
+}
+
+.gantt-track-line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+}
+
+.gantt-bar-wrap {
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.gantt-bar-wrap:hover,
+.gantt-bar-wrap:focus-visible {
+  filter: brightness(1.12);
+  outline: none;
+}
+
+.gantt-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: var(--ink);
+  color: var(--bg);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 20;
+  box-shadow: var(--shadow-md);
+}
+
+.gantt-bar-wrap:hover .gantt-tooltip,
+.gantt-bar-wrap:focus-visible .gantt-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}

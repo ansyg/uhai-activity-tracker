@@ -51,6 +51,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
               take: 1,
               include: { changedBy: { select: { name: true } } },
             },
+            checklistItems: { select: { done: true } },
             _count: { select: { comments: true } },
           },
         },
@@ -71,6 +72,8 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
     activities: phase.activities.map((activity) => ({
       ...activity,
       commentCount: activity._count.comments,
+      checklistDone: activity.checklistItems.filter((i) => i.done).length,
+      checklistTotal: activity.checklistItems.length,
       lastUpdatedBy: activity.history[0]?.changedBy?.name ?? null,
       lastUpdatedAt: activity.history[0]?.createdAt ?? null,
     })),
@@ -141,6 +144,9 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link className="btn" href={`/trackers/${trackerId}/timeline`}>
+            Timeline
+          </Link>
           <Link className="btn" href={`/reports/${trackerId}`} target="_blank" rel="noreferrer">
             Export report
           </Link>

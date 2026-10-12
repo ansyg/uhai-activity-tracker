@@ -9,6 +9,7 @@ import {
   DatesCell,
   ProgressStatusCell,
   NotesLinkCell,
+  PhaseMoveCell,
 } from "@/components/trackers/ActivityCells";
 import { NewPhaseForm } from "@/components/trackers/NewPhaseForm";
 import { NewActivityForm } from "@/components/trackers/NewActivityForm";
@@ -33,6 +34,8 @@ interface ActivityData {
   module: { id: string; name: string } | null;
   assignees: Assignee[];
   commentCount: number;
+  checklistDone?: number;
+  checklistTotal?: number;
   lastUpdatedBy?: string | null;
   lastUpdatedAt?: string | Date | null;
 }
@@ -205,6 +208,18 @@ export function TrackerBoard({
     setPhases((prev) => prev.map((phase) => (phase.id === phaseId ? { ...phase, name } : phase)));
   }
 
+  function handleActivityMoved(activityId: string, fromPhaseId: string, toPhaseId: string) {
+    setPhases((prev) => {
+      const activity = prev.find((p) => p.id === fromPhaseId)?.activities.find((a) => a.id === activityId);
+      if (!activity) return prev;
+      return prev.map((phase) => {
+        if (phase.id === fromPhaseId) return { ...phase, activities: phase.activities.filter((a) => a.id !== activityId) };
+        if (phase.id === toPhaseId) return { ...phase, activities: [...phase.activities, activity] };
+        return phase;
+      });
+    });
+  }
+
   return (
     <div>
       <div className="stat-grid">
@@ -238,7 +253,29 @@ export function TrackerBoard({
 
       <h3 style={{ marginBottom: 14 }}>Activities</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        {phases.map((phase) => (
+        {phases.map((phase) => {
+          const phaseColumns: Column<ActivityData>[] =
+            canEditActivities && phases.length > 1
+              ? [
+                  ...activityColumns,
+                  {
+                    key: "phase",
+                    header: "Phase",
+                    width: 160,
+                    cell: (activity) => (
+                      <PhaseMoveCell
+                        activity={activity}
+                        currentPhaseId={phase.id}
+                        phases={phases.map((p) => ({ id: p.id, name: p.name }))}
+                        canEdit={canEditActivities}
+                        onMoved={(toPhaseId) => handleActivityMoved(activity.id, phase.id, toPhaseId)}
+                      />
+                    ),
+                  },
+                ]
+              : activityColumns;
+
+          return (
           <div key={phase.id} id={`phase-${phase.id}`} style={{ scrollMarginTop: 90 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <PhaseNameEditor
@@ -253,7 +290,7 @@ export function TrackerBoard({
               )}
             </div>
             <DataTable
-              columns={activityColumns}
+              columns={phaseColumns}
               data={phase.activities}
               rowKey={(activity) => activity.id}
               minWidth={900}
@@ -275,7 +312,8 @@ export function TrackerBoard({
               }
             />
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

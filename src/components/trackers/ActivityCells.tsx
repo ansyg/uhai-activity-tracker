@@ -26,6 +26,8 @@ export interface ActivityCellData {
   module: { id: string; name: string } | null;
   assignees: Assignee[];
   lastUpdatedBy?: string | null;
+  checklistDone?: number;
+  checklistTotal?: number;
 }
 
 interface MemberOption {
@@ -52,11 +54,21 @@ export function ActivityTitleCell({ activity, trackerId }: { activity: ActivityC
       <Link href={`/trackers/${trackerId}/activities/${activity.id}`} style={{ fontWeight: 560 }}>
         {activity.title}
       </Link>
-      {activity.module && (
-        <div className="muted" style={{ fontSize: "0.82em" }}>
-          {activity.module.name}
-        </div>
-      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {activity.module && (
+          <span className="muted" style={{ fontSize: "0.82em" }}>
+            {activity.module.name}
+          </span>
+        )}
+        {!!activity.checklistTotal && (
+          <span
+            className={`badge ${activity.checklistDone === activity.checklistTotal ? "badge-completed" : "badge-neutral"}`}
+            style={{ fontSize: "0.72em", padding: "1px 7px" }}
+          >
+            ☑ {activity.checklistDone}/{activity.checklistTotal}
+          </span>
+        )}
+      </div>
     </>
   );
 }
@@ -238,6 +250,57 @@ export function ProgressStatusCell({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+export function PhaseMoveCell({
+  activity,
+  currentPhaseId,
+  phases,
+  canEdit,
+  onMoved,
+}: {
+  activity: { id: string };
+  currentPhaseId: string;
+  phases: { id: string; name: string }[];
+  canEdit: boolean;
+  onMoved: (toPhaseId: string) => void;
+}) {
+  const [moving, setMoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!canEdit) return null;
+
+  return (
+    <div>
+      <select
+        className="input"
+        style={{ width: "auto", padding: "4px 8px", fontSize: "0.82em" }}
+        value={currentPhaseId}
+        disabled={moving}
+        onChange={async (e) => {
+          const toPhaseId = e.target.value;
+          if (toPhaseId === currentPhaseId) return;
+          setMoving(true);
+          setError(null);
+          try {
+            await api.patch(`/api/activities/${activity.id}`, { phaseId: toPhaseId });
+            onMoved(toPhaseId);
+          } catch (err) {
+            setError(err instanceof ApiError ? err.message : "Couldn't move that activity.");
+          } finally {
+            setMoving(false);
+          }
+        }}
+      >
+        {phases.map((phase) => (
+          <option key={phase.id} value={phase.id}>
+            {phase.name}
+          </option>
+        ))}
+      </select>
+      {error && <div className="error-text" style={{ fontSize: "0.75em" }}>{error}</div>}
     </div>
   );
 }

@@ -6,8 +6,9 @@ import { requireTrackerGrant } from "@/lib/rbac/permissions";
 import { loadTrackerForViewer } from "@/lib/trackers/access";
 import { statusFromPercent } from "@/lib/activities/status";
 import { isPlausibleIsoDateTime } from "@/lib/dates";
-import { NotFoundError, handleApiError } from "@/lib/api/errors";
+import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors";
 import { syncActivityToCalendar } from "@/lib/calendar/google-calendar";
+import { deleteObject, keyFromPublicUrl } from "@/lib/storage/r2";
 
 const isoDate = z
   .string()
@@ -18,12 +19,13 @@ const PatchActivitySchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(4000).nullable().optional(),
   moduleId: z.string().nullable().optional(),
+  phaseId: z.string().min(1).optional(),
   statusPercent: z.number().int().min(0).max(100).optional(),
   startDate: isoDate.nullable().optional(),
   endDate: isoDate.nullable().optional(),
 });
 
-const TRACKED_FIELDS = ["title", "description", "moduleId", "statusPercent", "status", "startDate", "endDate"] as const;
+const TRACKED_FIELDS = ["title", "description", "moduleId", "phaseId", "statusPercent", "status", "startDate", "endDate"] as const;
 
 function serializeForHistory(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -69,10 +71,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const body = PatchActivitySchema.parse(await request.json());
 
+    if (body.phaseId !== undefined && body.phaseId !== existing.phaseId) {
+      // Moving across trackers isn't a thing a phase picker should ever offer,
+      // but the request is just a string id — confirm it server-side too.
+      const targetPhase = await prisma.phase.findFirst({
+        where: { id: body.phaseId, trackerId: existing.trackerId },
+      });
+      if (!targetPhase) throw new BadRequestError("That phase doesn't belong to this tracker.");
+    }
+
     const data: Record<string, unknown> = {};
     if (body.title !== undefined) data.title = body.title;
     if (body.description !== undefined) data.description = body.description;
     if (body.moduleId !== undefined) data.moduleId = body.moduleId;
+    if (body.phaseId !== undefined) data.phaseId = body.phaseId;
     if (body.startDate !== undefined) data.startDate = body.startDate ? new Date(body.startDate) : null;
     if (body.endDate !== undefined) data.endDate = body.endDate ? new Date(body.endDate) : null;
     if (body.statusPercent !== undefined) {
@@ -125,12 +137,25 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     await loadTrackerForViewer(existing.trackerId, userId);
     await requireTrackerGrant(userId, existing.trackerId, "tracker.activities", "DELETE");
 
+    // Best-effort: remove the R2 objects before the DB rows disappear —
+    // after the transaction below there'd be no record of their keys left
+    // to clean up, so a storage error here must not block the deletion.
+    const attachments = await prisma.attachment.findMany({ where: { activityId: id }, select: { fileUrl: true } });
+    await Promise.all(
+      attachments.map((a) => {
+        const key = keyFromPublicUrl(a.fileUrl);
+        return key ? deleteObject(key).catch((err) => console.error("Failed to delete R2 object:", err)) : undefined;
+      })
+    );
+
     // Children (assignees, comments, history, calendar links) don't block
     // deletion — Prisma cascades aren't declared for them in the schema, so
     // clear them explicitly before the activity itself.
     await prisma.$transaction([
       prisma.activityAssignee.deleteMany({ where: { activityId: id } }),
       prisma.comment.deleteMany({ where: { activityId: id } }),
+      prisma.checklistItem.deleteMany({ where: { activityId: id } }),
+      prisma.attachment.deleteMany({ where: { activityId: id } }),
       prisma.activityHistory.deleteMany({ where: { activityId: id } }),
       prisma.calendarEventMap.deleteMany({ where: { activityId: id } }),
       prisma.activity.delete({ where: { id } }),

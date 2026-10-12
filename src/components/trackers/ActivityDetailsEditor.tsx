@@ -9,19 +9,28 @@ interface ModuleOption {
   name: string;
 }
 
+interface PhaseOption {
+  id: string;
+  name: string;
+}
+
 export function ActivityDetailsEditor({
   activityId,
   title: initialTitle,
   description: initialDescription,
   moduleId: initialModuleId,
+  phaseId: initialPhaseId,
   modules,
+  phases,
   canEdit,
 }: {
   activityId: string;
   title: string;
   description: string | null;
   moduleId: string | null;
+  phaseId: string;
   modules: ModuleOption[];
+  phases: PhaseOption[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -29,6 +38,7 @@ export function ActivityDetailsEditor({
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription ?? "");
   const [moduleId, setModuleId] = useState(initialModuleId ?? "");
+  const [phaseId, setPhaseId] = useState(initialPhaseId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +51,7 @@ export function ActivityDetailsEditor({
         title,
         description: description || null,
         moduleId: moduleId || null,
+        phaseId,
       });
       setEditing(false);
       router.refresh();
@@ -77,6 +88,18 @@ export function ActivityDetailsEditor({
             {modules.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {phases.length > 1 && (
+        <div>
+          <label className="field-label">Phase</label>
+          <select className="input" value={phaseId} onChange={(e) => setPhaseId(e.target.value)}>
+            {phases.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>

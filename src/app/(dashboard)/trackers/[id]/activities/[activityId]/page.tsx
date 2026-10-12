@@ -2,6 +2,8 @@ import { BackLink } from "@/components/BackLink";
 import { ActivityComments } from "@/components/trackers/ActivityComments";
 import { ActivityTitleCell, AssigneesCell, DatesCell, ProgressStatusCell, NotesLinkCell } from "@/components/trackers/ActivityCells";
 import { ActivityDetailsEditor } from "@/components/trackers/ActivityDetailsEditor";
+import { ActivityChecklist } from "@/components/trackers/ActivityChecklist";
+import { ActivityAttachments } from "@/components/trackers/ActivityAttachments";
 import { AssigneeManager } from "@/components/trackers/AssigneeManager";
 import { DeleteActivityButton } from "@/components/trackers/DeleteActivityButton";
 import { getCurrentUserId } from "@/lib/auth/session";
@@ -23,6 +25,7 @@ const FIELD_LABELS: Record<string, string> = {
   title: "Title",
   description: "Description",
   moduleId: "Module",
+  phaseId: "Phase",
   statusPercent: "Progress",
   status: "Status",
   startDate: "Start date",
@@ -90,17 +93,23 @@ export default async function ActivityDetailPage({
         orderBy: { createdAt: "desc" },
         take: 20,
       },
+      checklistItems: { orderBy: { sequence: "asc" } },
+      attachments: {
+        include: { uploadedBy: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
+      },
       _count: { select: { comments: true } },
     },
   });
   if (!activity) notFound();
 
-  const [grants, approvedMembers] = await Promise.all([
+  const [grants, approvedMembers, phases] = await Promise.all([
     getTrackerGrants(userId, trackerId),
     prisma.trackerMembership.findMany({
       where: { trackerId, status: "APPROVED" },
       select: { user: { select: { id: true, name: true } } },
     }),
+    prisma.phase.findMany({ where: { trackerId }, orderBy: { sequence: "asc" }, select: { id: true, name: true } }),
   ]);
   const canEdit = grants.has("tracker.activities:EDIT");
   const canDelete = grants.has("tracker.activities:DELETE");
@@ -132,7 +141,9 @@ export default async function ActivityDetailPage({
             title={activity.title}
             description={activity.description}
             moduleId={activity.moduleId}
+            phaseId={activity.phaseId}
             modules={moduleOptions}
+            phases={phases}
             canEdit={canEdit}
           />
         </div>
@@ -192,11 +203,45 @@ export default async function ActivityDetailPage({
         </div>
       </div>
 
+      {(canEdit || activity.checklistItems.length > 0) && (
+        <>
+          <h3 style={{ marginBottom: 14 }}>Checklist</h3>
+          <div className="card" style={{ padding: 20, marginBottom: 28 }}>
+            <ActivityChecklist
+              activityId={activity.id}
+              initialItems={activity.checklistItems}
+              canEdit={canEdit}
+            />
+          </div>
+        </>
+      )}
+
+      {(canEdit || activity.attachments.length > 0) && (
+        <>
+          <h3 style={{ marginBottom: 14 }}>Attachments</h3>
+          <div className="card" style={{ padding: 20, marginBottom: 28 }}>
+            <ActivityAttachments
+              activityId={activity.id}
+              initialAttachments={activity.attachments.map((a) => ({
+                id: a.id,
+                fileName: a.fileName,
+                fileUrl: a.fileUrl,
+                fileSize: a.fileSize,
+                uploadedByName: a.uploadedBy.name,
+                createdAt: a.createdAt.toISOString(),
+              }))}
+              canEdit={canEdit}
+            />
+          </div>
+        </>
+      )}
+
       <h3 style={{ marginBottom: 14 }}>Remarks</h3>
       <div className="card w-full" style={{ padding: 20, marginBottom: 28 }}>
         <ActivityComments
           activityId={activity.id}
           comments={activity.comments}
+          members={approvedMembers.map((m) => m.user)}
         />
       </div>
 
