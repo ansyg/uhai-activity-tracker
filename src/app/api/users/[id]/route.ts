@@ -10,12 +10,13 @@ const PatchUserSchema = z
   .object({
     isActive: z.boolean().optional(),
     subscriptionStatus: z.enum(["APPROVED", "REJECTED"]).optional(),
+    name: z.string().min(1).max(200).optional(),
   })
-  .refine((body) => body.isActive !== undefined || body.subscriptionStatus !== undefined, {
+  .refine((body) => body.isActive !== undefined || body.subscriptionStatus !== undefined || body.name !== undefined, {
     message: "Nothing to update.",
   });
 
-/** Platform Admin only: activate/deactivate an account, or decide its pending platform subscription. */
+/** Platform Admin only: activate/deactivate an account, decide its pending platform subscription, or rename a password-based account. */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const callerId = await requireUserId();
@@ -31,12 +32,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const target = await prisma.user.findUnique({ where: { id: targetUserId } });
     if (!target) throw new NotFoundError("User not found.");
 
+    // A Google account's name comes from its Google identity — editing it
+    // here would just get overwritten on the next sign-in, so only a
+    // password-based account's name is ours to change.
+    if (body.name !== undefined && !target.passwordHash) {
+      throw new BadRequestError("This account signs in with Google — its name can't be edited here.");
+    }
+
     const { user, acceptedInvites } = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { id: targetUserId },
         data: {
           ...(body.isActive !== undefined && { isActive: body.isActive }),
           ...(body.subscriptionStatus !== undefined && { subscriptionStatus: body.subscriptionStatus }),
+          ...(body.name !== undefined && { name: body.name }),
         },
       });
       if (body.isActive === false) {
@@ -86,7 +95,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     return NextResponse.json({
-      user: { id: user.id, isActive: user.isActive, subscriptionStatus: user.subscriptionStatus },
+      user: { id: user.id, name: user.name, isActive: user.isActive, subscriptionStatus: user.subscriptionStatus },
     });
   } catch (error) {
     return handleApiError(error);

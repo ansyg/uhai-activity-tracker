@@ -169,10 +169,10 @@ export function TrackerSystemsEditor({
         {systems.map((link) => (
           <div
             key={link.system.id}
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}
           >
             <span style={{ fontSize: "0.9em", fontWeight: 500 }}>{link.system.name}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <RoleSelect
                 value={link.role}
                 disabled={busySystemId === link.system.id}

@@ -3,7 +3,21 @@
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api/client";
 
-export function RequestMoreTrackersForm({ currentMax }: { currentMax: number }) {
+/**
+ * Collapsed to a plain trigger button by default so it can sit compactly
+ * anywhere (the blocked-state /trackers/new page, or proactively on the
+ * /trackers list) — not just a permanently-open form.
+ */
+export function RequestMoreTrackersForm({
+  currentMax,
+  triggerLabel = "Request a higher limit",
+  defaultOpen = false,
+}: {
+  currentMax: number;
+  triggerLabel?: string;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [requestedMax, setRequestedMax] = useState(currentMax + 2);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +46,14 @@ export function RequestMoreTrackersForm({ currentMax }: { currentMax: number }) 
     );
   }
 
+  if (!open) {
+    return (
+      <button className="btn btn-ghost" onClick={() => setOpen(true)}>
+        {triggerLabel}
+      </button>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
@@ -50,9 +72,16 @@ export function RequestMoreTrackersForm({ currentMax }: { currentMax: number }) 
         <textarea className="input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
       </div>
       {error && <p className="error-text">{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={submitting}>
-        {submitting ? "Sending…" : "Send request"}
-      </button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn btn-primary" type="submit" disabled={submitting}>
+          {submitting ? "Sending…" : "Send request"}
+        </button>
+        {defaultOpen ? null : (
+          <button className="btn btn-ghost" type="button" onClick={() => setOpen(false)} disabled={submitting}>
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }

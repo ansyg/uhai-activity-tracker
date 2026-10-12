@@ -12,7 +12,7 @@ export default async function UsersPage() {
   const grants = await getGlobalGrants(userId);
   if (!grants.has("users:VIEW")) notFound();
 
-  const [users, limitRequests, pendingInvites] = await Promise.all([
+  const [users, limitRequests, pendingInvites, allRoles] = await Promise.all([
     prisma.user.findMany({
       select: {
         id: true,
@@ -50,7 +50,21 @@ export default async function UsersPage() {
       where: { status: "PENDING", expiresAt: { gt: new Date() } },
       select: { email: true, tracker: { select: { name: true } } },
     }),
+    grants.has("users:MANAGE")
+      ? prisma.role.findMany({
+          select: { id: true, name: true, permissions: { select: { permission: { select: { menu: { select: { scope: true } } } } } } },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
+
+  // Same "assignable globally" filter as GET /api/roles?scope=GLOBAL — a role
+  // with no permissions yet, or whose permissions are all on GLOBAL-scope
+  // menus, makes sense as a platform-wide UserRole; a tracker-role template
+  // (Owner/Contributor/…) does not.
+  const globalRoleOptions = allRoles
+    .filter((role) => role.permissions.length === 0 || role.permissions.every((rp) => rp.permission.menu.scope === "GLOBAL"))
+    .map((role) => ({ id: role.id, name: role.name }));
 
   const pendingInviteTrackersByEmail = new Map<string, string[]>();
   for (const invite of pendingInvites) {
@@ -100,6 +114,7 @@ export default async function UsersPage() {
         canManage={canManage}
         currentUserId={userId}
         limitRequests={limitRequestRows}
+        globalRoleOptions={globalRoleOptions}
       />
     </>
   );

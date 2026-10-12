@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/api/guard";
 import { requireApprovedSubscription } from "@/lib/auth/subscription";
+import { hasUnlimitedTrackers } from "@/lib/trackers/limits";
 import { BadRequestError, handleApiError } from "@/lib/api/errors";
 
 /** Mine (owned or a member of, any status) plus every PUBLIC tracker I could request to join. */
@@ -71,13 +72,14 @@ export async function POST(request: NextRequest) {
     await requireApprovedSubscription(userId);
     const body = CreateTrackerSchema.parse(await request.json());
 
-    const [ownerRole, user, ownedCount] = await Promise.all([
+    const [ownerRole, user, ownedCount, unlimited] = await Promise.all([
       prisma.role.findUnique({ where: { name: "Owner" } }),
       prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { maxTrackers: true } }),
       prisma.tracker.count({ where: { ownerId: userId } }),
+      hasUnlimitedTrackers(userId),
     ]);
     if (!ownerRole) throw new BadRequestError("RBAC is not seeded — run `npm run seed` first.");
-    if (ownedCount >= user.maxTrackers) {
+    if (!unlimited && ownedCount >= user.maxTrackers) {
       throw new BadRequestError(
         `You've reached your limit of ${user.maxTrackers} tracker${user.maxTrackers === 1 ? "" : "s"}. Request a higher limit from the platform owner to create more.`
       );

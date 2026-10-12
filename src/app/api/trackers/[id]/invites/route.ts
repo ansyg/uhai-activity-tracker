@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/api/guard";
 import { requireTrackerGrant } from "@/lib/rbac/permissions";
 import { sendEmail } from "@/lib/notifications/email";
+import { getAppOrigin } from "@/lib/http/origin";
 import { BRAND } from "@/lib/branding";
 import { BadRequestError, NotFoundError, handleApiError } from "@/lib/api/errors";
 
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
 
     const acceptPath = `/accept-invite?token=${invite.token}`;
-    const acceptUrl = `${request.nextUrl.origin}${acceptPath}`;
+    const acceptUrl = `${getAppOrigin(request)}${acceptPath}`;
 
     // This is one of the two load-bearing emails (ARCHITECTURE.md §7) — the
     // recipient has no account yet, so this link is the only way they can

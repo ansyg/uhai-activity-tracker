@@ -121,6 +121,23 @@ model User {
   refreshTokens      RefreshToken[]
   trackerLimitRequests        TrackerLimitRequest[] @relation("LimitRequester")
   decidedTrackerLimitRequests TrackerLimitRequest[] @relation("LimitRequestDecider")
+  passwordResetTokens         PasswordResetToken[]
+}
+
+// A one-time emailed link to set a new password — self-requested ("forgot
+// password") or admin-triggered from the Users admin page. Google-only
+// accounts (no passwordHash) never get one issued. Mirrors TrackerInvite's
+// token+expiry shape.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // A user's ask to raise their maxTrackers above the default cap, reviewed by

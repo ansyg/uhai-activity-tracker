@@ -4,15 +4,20 @@ import { getCurrentUserId } from "@/lib/auth/session";
 import { JoinRequestButton } from "@/components/trackers/JoinRequestButton";
 import { RemoveTrackerButton } from "@/components/trackers/RemoveTrackerButton";
 import { TrackerSettingsEditor } from "@/components/trackers/TrackerSettingsEditor";
+import { TrackerSystemsEditor } from "@/components/trackers/TrackerSystemsEditor";
+import { RequestMoreTrackersForm } from "@/components/trackers/RequestMoreTrackersForm";
 import { AvatarStack } from "@/components/AvatarStack";
 import { ProgressRing } from "@/components/trackers/ProgressRing";
+import { hasUnlimitedTrackers } from "@/lib/trackers/limits";
 
 export default async function TrackersPage() {
   const userId = await getCurrentUserId();
   if (!userId) return null;
 
-  const [user, trackers] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+  const [user, ownedCount, unlimited, trackers] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, maxTrackers: true, subscriptionStatus: true } }),
+    prisma.tracker.count({ where: { ownerId: userId } }),
+    hasUnlimitedTrackers(userId),
     prisma.tracker.findMany({
       where: {
         OR: [{ ownerId: userId }, { memberships: { some: { userId } } }, { visibility: "PUBLIC" }],
@@ -63,9 +68,19 @@ export default async function TrackersPage() {
           <p className="greeting">Welcome back, {firstName}</p>
           <h1>Your trackers</h1>
         </div>
-        <Link className="btn btn-primary" href="/trackers/new">
-          New tracker
-        </Link>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+          <Link className="btn btn-primary" href="/trackers/new">
+            New tracker
+          </Link>
+          {user && user.subscriptionStatus === "APPROVED" && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              <span className="muted" style={{ fontSize: "0.82em" }}>
+                {unlimited ? "Unlimited trackers (Platform Admin)" : `${ownedCount} of ${user.maxTrackers} trackers owned`}
+              </span>
+              {!unlimited && <RequestMoreTrackersForm currentMax={user.maxTrackers} />}
+            </div>
+          )}
+        </div>
       </div>
 
       {trackers.length === 0 && (
@@ -100,14 +115,15 @@ export default async function TrackersPage() {
                 {tracker.description ?? "No description yet."}
               </p>
 
-              {tracker.systems.length > 0 && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {tracker.systems.map((link) => (
-                    <span key={link.systemId} className="badge badge-neutral">
-                      {link.system.name}
-                    </span>
-                  ))}
-                </div>
+              {(tracker.systems.length > 0 || isOwner) && (
+                <TrackerSystemsEditor
+                  trackerId={tracker.id}
+                  initialSystems={tracker.systems.map((link) => ({
+                    system: { id: link.system.id, name: link.system.name },
+                    role: link.role,
+                  }))}
+                  canEdit={isOwner}
+                />
               )}
 
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
