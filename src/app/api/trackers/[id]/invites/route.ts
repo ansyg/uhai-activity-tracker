@@ -26,9 +26,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = CreateInviteSchema.parse(await request.json());
     const email = body.email.toLowerCase();
 
-    const [role, tracker] = await Promise.all([
+    const [role, tracker, inviter] = await Promise.all([
       prisma.role.findUnique({ where: { id: body.roleId } }),
       prisma.tracker.findUnique({ where: { id: trackerId }, select: { name: true } }),
+      prisma.user.findUniqueOrThrow({ where: { id: callerId }, select: { name: true } }),
     ]);
     if (!role) throw new BadRequestError("Unknown role.");
     if (!tracker) throw new NotFoundError("Tracker not found.");
@@ -69,7 +70,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ctaLabel: "Accept invite",
     }).catch((err) => console.error("Failed to send invite email:", err));
 
-    return NextResponse.json({ invite, acceptUrl: acceptPath }, { status: 201 });
+    return NextResponse.json(
+      { invite, acceptUrl: acceptPath, roleName: role.name, invitedByName: inviter.name },
+      { status: 201 }
+    );
   } catch (error) {
     return handleApiError(error);
   }

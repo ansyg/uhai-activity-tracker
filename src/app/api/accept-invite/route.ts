@@ -15,7 +15,16 @@ export async function GET(request: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.email !== invite.email) {
-      throw new BadRequestError(`This invite was sent to ${invite.email} — sign in with that exact email to accept it.`);
+      // Not an error — the frontend shows this as a distinct outcome with a
+      // "sign out and try again" action, not a dead-end message (ARCHITECTURE.md
+      // §3.4: the recipient is very likely signed in under their everyday
+      // account, not the one the invite names).
+      return NextResponse.json({
+        status: "wrong-account",
+        expectedEmail: invite.email,
+        currentEmail: user?.email ?? null,
+        tracker: invite.tracker,
+      });
     }
 
     // Already resolved on a previous visit (including an auto-accept once the
@@ -30,8 +39,27 @@ export async function GET(request: NextRequest) {
       }
       throw new BadRequestError("This invite has already been accepted.");
     }
-    if (invite.status !== "PENDING") throw new BadRequestError(`This invite has already been ${invite.status.toLowerCase()}.`);
-    if (invite.expiresAt < new Date()) throw new BadRequestError("This invite has expired.");
+    // A stale link (revoked by a resend, or past its own expiry) shouldn't
+    // dead-end someone who has a fresher invite waiting — e.g. an owner using
+    // "Resend invite" revokes the old token and issues a new one, but the
+    // recipient may still have the old email/link open. Only reachable here
+    // once we already know the signed-in email matches the invite, so this
+    // can't be used to probe for someone else's active invite.
+    if (invite.status !== "PENDING" || invite.expiresAt < new Date()) {
+      const fresher = await prisma.trackerInvite.findFirst({
+        where: { trackerId: invite.trackerId, email: invite.email, status: "PENDING", expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: "desc" },
+      });
+      if (fresher) {
+        return NextResponse.json({ status: "superseded", newToken: fresher.token, tracker: invite.tracker });
+      }
+      if (invite.status !== "PENDING") {
+        throw new BadRequestError(
+          `This invite has already been ${invite.status.toLowerCase()}. Ask the tracker owner to send a new one.`
+        );
+      }
+      throw new BadRequestError("This invite has expired. Ask the tracker owner to send a new one.");
+    }
 
     // A not-yet-approved account can't join a tracker yet — leave the invite
     // PENDING so it auto-completes the moment a Platform Admin approves them,

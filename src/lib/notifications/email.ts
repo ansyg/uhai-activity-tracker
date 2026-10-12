@@ -1,6 +1,21 @@
 import { sendEmail as sendRawEmail } from "@/integration/mail/email/mailer";
 import { BRAND } from "@/lib/branding";
 
+/**
+ * Escapes user-controlled text (tracker names, etc.) before it's interpolated
+ * into an email's HTML `body`/`heading` — those fields are otherwise raw HTML
+ * by design (callers intentionally embed tags like `<strong>`), so this has
+ * to happen at each call site rather than inside renderTemplate itself.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 interface SendEmailInput {
   to: string;
   subject: string;

@@ -2,13 +2,9 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { getTrackerGrants } from "@/lib/rbac/permissions";
-import { InviteForm } from "@/components/trackers/InviteForm";
+import { TrackerMembers } from "@/components/trackers/TrackerMembers";
+import { TrackerInvites } from "@/components/trackers/TrackerInvites";
 import { BackLink } from "@/components/BackLink";
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
-}
 
 export default async function MembersPage({ params }: { params: Promise<{ id: string }> }) {
   const userId = await getCurrentUserId();
@@ -18,12 +14,17 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
   const grants = await getTrackerGrants(userId, trackerId);
   if (!grants.has("tracker.members:VIEW")) notFound();
 
-  const [tracker, members, roles] = await Promise.all([
-    prisma.tracker.findUnique({ where: { id: trackerId }, select: { name: true } }),
+  const [tracker, members, pendingInvites, roles] = await Promise.all([
+    prisma.tracker.findUnique({ where: { id: trackerId }, select: { name: true, ownerId: true } }),
     prisma.trackerMembership.findMany({
       where: { trackerId, status: "APPROVED" },
       include: { user: { select: { id: true, name: true, email: true } }, role: true },
       orderBy: { requestedAt: "asc" },
+    }),
+    prisma.trackerInvite.findMany({
+      where: { trackerId, status: "PENDING" },
+      include: { role: true, invitedBy: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
     }),
     prisma.role.findMany({
       include: { permissions: { include: { permission: { include: { menu: true } } } } },
@@ -46,35 +47,33 @@ export default async function MembersPage({ params }: { params: Promise<{ id: st
         Everyone with approved access to this tracker.
       </p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 32 }}>
-        {members.map((membership) => (
-          <div
-            key={membership.userId}
-            className="card"
-            style={{ padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span className="avatar" style={{ width: 38, height: 38, fontSize: "0.8rem" }}>
-                {initials(membership.user.name) || "?"}
-              </span>
-              <div>
-                <div style={{ fontWeight: 600 }}>{membership.user.name}</div>
-                <div className="muted" style={{ fontSize: "0.85em" }}>
-                  {membership.user.email}
-                </div>
-              </div>
-            </div>
-            <span className="badge badge-primary">{membership.role.name}</span>
-          </div>
-        ))}
-      </div>
+      <TrackerMembers
+        trackerId={trackerId}
+        ownerId={tracker.ownerId}
+        canManage={canManage}
+        roles={trackerRoles}
+        initialMembers={members.map((membership) => ({
+          userId: membership.userId,
+          name: membership.user.name,
+          email: membership.user.email,
+          roleId: membership.roleId,
+          roleName: membership.role.name,
+        }))}
+      />
 
-      {canManage && (
-        <>
-          <h3 style={{ marginBottom: 12 }}>Invite by email</h3>
-          <InviteForm trackerId={trackerId} roles={trackerRoles} />
-        </>
-      )}
+      <TrackerInvites
+        trackerId={trackerId}
+        roles={trackerRoles}
+        canManage={canManage}
+        initialInvites={pendingInvites.map((invite) => ({
+          id: invite.id,
+          email: invite.email,
+          roleName: invite.role.name,
+          invitedByName: invite.invitedBy.name,
+          createdAt: invite.createdAt.toISOString(),
+          expiresAt: invite.expiresAt.toISOString(),
+        }))}
+      />
     </div>
   );
 }

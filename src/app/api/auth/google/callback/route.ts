@@ -6,8 +6,10 @@ import { createSession, getCurrentUserId } from "@/lib/auth/session";
 import { exchangeCodeForCalendarTokens } from "@/lib/calendar/google-calendar";
 import { encrypt } from "@/lib/calendar/crypto";
 import { CALENDAR_STATE_COOKIE } from "@/lib/calendar/constants";
+import { sanitizeRedirectPath } from "@/lib/http/redirect";
 
 const STATE_COOKIE = "google_oauth_state";
+const REDIRECT_COOKIE = "google_oauth_redirect";
 
 function redirectToSignIn(request: NextRequest, errorMessage: string) {
   const url = new URL("/sign-in", request.url);
@@ -71,6 +73,9 @@ export async function GET(request: NextRequest) {
   const expectedState = store.get(STATE_COOKIE)?.value;
   store.delete(STATE_COOKIE);
 
+  const redirectPath = sanitizeRedirectPath(store.get(REDIRECT_COOKIE)?.value);
+  store.delete(REDIRECT_COOKIE);
+
   if (!code || !state || !expectedState || state !== expectedState) {
     return redirectToSignIn(request, "Google sign-in failed — please try again.");
   }
@@ -108,7 +113,13 @@ export async function GET(request: NextRequest) {
     }
 
     await createSession(user.id, user.email);
-    return NextResponse.redirect(new URL("/trackers", request.url));
+    // Belt and suspenders beyond sanitizeRedirectPath: only honor the
+    // target if it actually resolves to this same origin.
+    const target = new URL(redirectPath ?? "/trackers", request.url);
+    if (target.origin !== request.nextUrl.origin) {
+      return NextResponse.redirect(new URL("/trackers", request.url));
+    }
+    return NextResponse.redirect(target);
   } catch (error) {
     console.error(error);
     return redirectToSignIn(request, "Google sign-in failed — please try again.");

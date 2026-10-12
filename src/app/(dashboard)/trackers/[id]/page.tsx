@@ -7,6 +7,7 @@ import { AvatarStack } from "@/components/AvatarStack";
 import { TrackerDatesEditor } from "@/components/trackers/TrackerDatesEditor";
 import { TrackerSettingsEditor } from "@/components/trackers/TrackerSettingsEditor";
 import { TrackerSystemsEditor } from "@/components/trackers/TrackerSystemsEditor";
+import { TrackerCalendarSyncButton } from "@/components/trackers/TrackerCalendarSyncButton";
 import { DeleteTrackerButton } from "@/components/trackers/DeleteTrackerButton";
 import { TrackerBoard } from "@/components/trackers/TrackerBoard";
 import { BackLink } from "@/components/BackLink";
@@ -82,6 +83,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
   const canManageMembers = grants.has("tracker.members:VIEW");
   const canEditTracker = grants.has("tracker.overview:EDIT");
   const canDeleteTracker = grants.has("tracker.overview:DELETE");
+  const canManageCalendar = grants.has("tracker.calendar:MANAGE");
 
   return (
     <div>
@@ -130,6 +132,11 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
                 calendarSyncEnabled={tracker.calendarSyncEnabled}
                 canEdit={canEditTracker}
               />
+            </div>
+          )}
+          {canManageCalendar && (
+            <div style={{ marginTop: 10 }}>
+              <TrackerCalendarSyncButton trackerId={trackerId} calendarSyncEnabled={tracker.calendarSyncEnabled} />
             </div>
           )}
         </div>

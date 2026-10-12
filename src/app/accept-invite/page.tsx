@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api/client";
 import { Logo } from "@/components/Logo";
@@ -10,12 +10,22 @@ type Outcome =
   | { state: "loading" }
   | { state: "signed-out" }
   | { state: "error"; message: string }
+  | { state: "wrong-account"; expectedEmail: string; currentEmail: string | null; trackerName: string }
   | { state: "pending-approval"; trackerName: string }
   | { state: "accepted"; trackerId: string; trackerName: string };
 
 function AcceptInviteContent() {
+  const router = useRouter();
   const token = useSearchParams().get("token") ?? "";
   const [outcome, setOutcome] = useState<Outcome>({ state: "loading" });
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOutAndSwitch() {
+    setSigningOut(true);
+    await api.post("/api/auth/logout").catch(() => {});
+    router.push(`/sign-in?redirect=${encodeURIComponent(`/accept-invite?token=${encodeURIComponent(token)}`)}`);
+    router.refresh();
+  }
 
   useEffect(() => {
     if (!token) {
@@ -32,11 +42,30 @@ function AcceptInviteContent() {
       }
 
       try {
-        const result = await api.get<{ status: "accepted" | "pending-approval"; tracker: { id: string; name: string } }>(
-          `/api/accept-invite?token=${encodeURIComponent(token)}`
-        );
+        const result = await api.get<{
+          status: "accepted" | "pending-approval" | "wrong-account" | "superseded";
+          tracker: { id: string; name: string };
+          expectedEmail?: string;
+          currentEmail?: string | null;
+          newToken?: string;
+        }>(`/api/accept-invite?token=${encodeURIComponent(token)}`);
+        if (result.status === "superseded" && result.newToken) {
+          // This exact link was revoked (e.g. the owner hit "Resend invite")
+          // but a fresh one for the same address exists — jump straight to
+          // it instead of dead-ending on a stale link. Replace, not push, so
+          // the dead token doesn't sit in back-button history.
+          router.replace(`/accept-invite?token=${encodeURIComponent(result.newToken)}`);
+          return;
+        }
         if (result.status === "pending-approval") {
           setOutcome({ state: "pending-approval", trackerName: result.tracker.name });
+        } else if (result.status === "wrong-account") {
+          setOutcome({
+            state: "wrong-account",
+            expectedEmail: result.expectedEmail ?? "",
+            currentEmail: result.currentEmail ?? null,
+            trackerName: result.tracker.name,
+          });
         } else {
           setOutcome({ state: "accepted", trackerId: result.tracker.id, trackerName: result.tracker.name });
         }
@@ -80,6 +109,29 @@ function AcceptInviteContent() {
                 Create account
               </Link>
             </div>
+          </>
+        )}
+
+        {outcome.state === "wrong-account" && (
+          <>
+            <h2 style={{ marginBottom: 8 }}>Wrong account signed in</h2>
+            <p className="muted" style={{ marginBottom: 20 }}>
+              {outcome.currentEmail ? (
+                <>
+                  You&apos;re signed in as <strong>{outcome.currentEmail}</strong>, but the invite to{" "}
+                  <strong>{outcome.trackerName}</strong> was sent to <strong>{outcome.expectedEmail}</strong>.
+                </>
+              ) : (
+                <>
+                  This invite to <strong>{outcome.trackerName}</strong> was sent to{" "}
+                  <strong>{outcome.expectedEmail}</strong>.
+                </>
+              )}{" "}
+              Sign out and sign back in with that exact address to accept it.
+            </p>
+            <button className="btn btn-primary" onClick={signOutAndSwitch} disabled={signingOut}>
+              {signingOut ? "Signing out…" : "Sign out and switch account"}
+            </button>
           </>
         )}
 

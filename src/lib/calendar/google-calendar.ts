@@ -1,6 +1,7 @@
 import { google, calendar_v3 } from "googleapis";
 import { prisma } from "@/lib/db";
 import { encrypt, decrypt } from "./crypto";
+import { sendEmail, escapeHtml } from "@/lib/notifications/email";
 
 /**
  * One-way (app → calendar) sync, per ARCHITECTURE.md §6 step 1 and the
@@ -154,4 +155,83 @@ export async function syncActivityToCalendar(activity: ActivityForSync, actingUs
       activityTitle: activity.title,
     }).catch(() => {});
   }
+}
+
+export interface BulkCalendarSyncResult {
+  eligibleActivityCount: number;
+  syncedMembers: { userId: string; name: string }[];
+  invitedMembers: { userId: string; name: string; email: string }[];
+}
+
+/** A Google account, for calendar-sync purposes: signed in with Google, or using a gmail.com address. */
+function hasGoogleAccount(user: { googleId: string | null; email: string }): boolean {
+  return Boolean(user.googleId) || user.email.toLowerCase().endsWith("@gmail.com");
+}
+
+/**
+ * Owner-triggered bulk push: unlike the per-actor sync above, this reaches
+ * every approved member with a Google account, not just whoever happened to
+ * edit an activity. A member who's already connected Calendar gets every
+ * dated activity pushed to it right now; one who hasn't is emailed an
+ * invitation instead — this never writes to anyone's calendar without their
+ * own Google consent (same OAuth connection the Account page uses).
+ *
+ * `appOrigin` ends up in an email sent to someone else, so it must be the
+ * trusted configured origin (getAppOrigin(request)) — never a raw request
+ * Host header, which a caller could spoof to point the invite's CTA link at
+ * an attacker-controlled domain.
+ */
+export async function syncTrackerActivitiesForAllMembers(
+  trackerId: string,
+  appOrigin: string
+): Promise<BulkCalendarSyncResult> {
+  const activities = await prisma.activity.findMany({
+    where: { trackerId, startDate: { not: null }, endDate: { not: null } },
+    select: { id: true, trackerId: true, title: true, description: true, startDate: true, endDate: true },
+  });
+
+  const syncedMembers: BulkCalendarSyncResult["syncedMembers"] = [];
+  const invitedMembers: BulkCalendarSyncResult["invitedMembers"] = [];
+  if (activities.length === 0) {
+    return { eligibleActivityCount: 0, syncedMembers, invitedMembers };
+  }
+
+  const [tracker, memberships] = await Promise.all([
+    prisma.tracker.findUniqueOrThrow({ where: { id: trackerId }, select: { name: true } }),
+    prisma.trackerMembership.findMany({
+      where: { trackerId, status: "APPROVED" },
+      select: { user: { select: { id: true, name: true, email: true, googleId: true } } },
+    }),
+  ]);
+
+  const eligibleUsers = memberships.map((m) => m.user).filter(hasGoogleAccount);
+
+  for (const user of eligibleUsers) {
+    const connection = await prisma.calendarConnection.findUnique({ where: { userId: user.id } });
+    if (connection) {
+      for (const activity of activities) {
+        await syncActivityToCalendar(activity, user.id, appOrigin).catch((err) =>
+          console.error(`Bulk calendar sync failed for user ${user.id}, activity ${activity.id}:`, err)
+        );
+      }
+      syncedMembers.push({ userId: user.id, name: user.name });
+    } else {
+      // Subject is a mail header, not HTML — strip CR/LF so a tracker name
+      // can't inject extra headers; body/heading go through escapeHtml since
+      // they're interpolated into raw HTML (see sendEmail's SendEmailInput).
+      const safeTrackerNameForSubject = tracker.name.replace(/[\r\n]+/g, " ");
+      const safeTrackerNameForHtml = escapeHtml(tracker.name);
+      await sendEmail({
+        to: user.email,
+        subject: `${safeTrackerNameForSubject} wants to sync activity dates to your calendar`,
+        heading: "Sync your calendar?",
+        body: `<strong>${safeTrackerNameForHtml}</strong> would like to add its activity dates to your Google Calendar. Connect your calendar to allow this — you're always free to disconnect again from your Account page.`,
+        ctaUrl: `${appOrigin}/api/calendar/connect`,
+        ctaLabel: "Connect Google Calendar",
+      }).catch((err) => console.error(`Calendar sync invite email failed for ${user.email}:`, err));
+      invitedMembers.push({ userId: user.id, name: user.name, email: user.email });
+    }
+  }
+
+  return { eligibleActivityCount: activities.length, syncedMembers, invitedMembers };
 }

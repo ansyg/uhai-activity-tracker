@@ -15,13 +15,16 @@ function SignInFields({ googleEnabled }: { googleEnabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const redirect = searchParams.get("redirect");
+  const googleHref = redirect ? `/api/auth/google?redirect=${encodeURIComponent(redirect)}` : "/api/auth/google";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
       await api.post("/api/auth/login", { email, password });
-      router.push(searchParams.get("redirect") ?? "/trackers");
+      router.push(redirect ?? "/trackers");
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
@@ -80,7 +83,7 @@ function SignInFields({ googleEnabled }: { googleEnabled: boolean }) {
             <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
           </div>
 
-          <a className="btn" href="/api/auth/google" style={{ width: "100%", justifyContent: "center" }}>
+          <a className="btn" href={googleHref} style={{ width: "100%", justifyContent: "center" }}>
             Continue with Google
           </a>
         </>
