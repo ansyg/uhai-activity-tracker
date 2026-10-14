@@ -80,6 +80,7 @@ export function TrackerBoard({
   canEditActivities,
   canCreateActivities,
   canDeleteActivities,
+  canManagePhases,
   moduleOptions,
   members,
 }: {
@@ -88,6 +89,8 @@ export function TrackerBoard({
   canEditActivities: boolean;
   canCreateActivities: boolean;
   canDeleteActivities: boolean;
+  /** Structural phase changes (create/rename/delete) — narrower than canEdit/CreateActivities: Owner/Admin only, following Trello's "list structure is a board-admin action" split. */
+  canManagePhases: boolean;
   moduleOptions: ModuleOption[];
   members: MemberOption[];
 }) {
@@ -245,7 +248,7 @@ export function TrackerBoard({
           <PhaseLane key={phase.phaseId} phase={phase} trackerId={trackerId} />
         ))}
       </div>
-      {canCreateActivities && (
+      {canManagePhases && (
         <div style={{ marginBottom: 36 }}>
           <NewPhaseForm trackerId={trackerId} onCreated={handlePhaseCreated} />
         </div>
@@ -282,10 +285,10 @@ export function TrackerBoard({
                 trackerId={trackerId}
                 phaseId={phase.id}
                 name={phase.name}
-                canEdit={canEditActivities}
+                canEdit={canManagePhases}
                 onRenamed={(name) => handlePhaseRenamed(phase.id, name)}
               />
-              {canDeleteActivities && phase.activities.length === 0 && (
+              {canManagePhases && phase.activities.length === 0 && (
                 <DeletePhaseButton trackerId={trackerId} phaseId={phase.id} onDeleted={() => handlePhaseDeleted(phase.id)} />
               )}
             </div>

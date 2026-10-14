@@ -48,6 +48,16 @@ const MENUS: MenuSeed[] = [
     scope: "TRACKER",
     actions: ["VIEW", "MANAGE"],
   },
+  {
+    // Structural changes to a tracker's phases (create/rename/delete) are
+    // deliberately a narrower grant than tracker.activities:EDIT — Trello
+    // reserves list structure to board admins, not every member who can
+    // edit a card, and we follow that split here.
+    key: "tracker.phases",
+    label: "Phases",
+    scope: "TRACKER",
+    actions: ["VIEW", "MANAGE"],
+  },
   // Global: checked against the caller's UserRole(s), app-wide. These also
   // drive the sidebar directly — see (dashboard)/layout.tsx, which renders
   // one link per GLOBAL menu with an `href` that the caller's grants pass
@@ -102,6 +112,8 @@ const ROLE_GRANTS: Record<string, string[]> = {
     "tracker.activities:CREATE",
     "tracker.activities:EDIT",
     "tracker.activities:DELETE",
+    "tracker.phases:VIEW",
+    "tracker.phases:MANAGE",
     "tracker.approvals:VIEW",
     "tracker.approvals:APPROVE",
     "tracker.members:VIEW",
@@ -116,6 +128,8 @@ const ROLE_GRANTS: Record<string, string[]> = {
     "tracker.activities:CREATE",
     "tracker.activities:EDIT",
     "tracker.activities:DELETE",
+    "tracker.phases:VIEW",
+    "tracker.phases:MANAGE",
     "tracker.approvals:VIEW",
     "tracker.approvals:APPROVE",
     "tracker.members:VIEW",
@@ -129,11 +143,17 @@ const ROLE_GRANTS: Record<string, string[]> = {
     "tracker.activities:CREATE",
     "tracker.activities:EDIT",
     "tracker.activities:DELETE",
+    "tracker.phases:VIEW",
     "tracker.approvals:VIEW",
     "tracker.calendar:VIEW",
   ],
-  Contributor: ["tracker.overview:VIEW", "tracker.activities:VIEW", "tracker.activities:EDIT"],
-  Viewer: ["tracker.overview:VIEW", "tracker.activities:VIEW"],
+  Contributor: [
+    "tracker.overview:VIEW",
+    "tracker.activities:VIEW",
+    "tracker.activities:EDIT",
+    "tracker.phases:VIEW",
+  ],
+  Viewer: ["tracker.overview:VIEW", "tracker.activities:VIEW", "tracker.phases:VIEW"],
 };
 
 /** Seeds menus/permissions/roles and returns { roleName -> Role.id }. */

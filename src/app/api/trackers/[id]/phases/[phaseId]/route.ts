@@ -19,7 +19,7 @@ export async function PATCH(
     const userId = await requireUserId();
     const { id: trackerId, phaseId } = await params;
     await loadTrackerForViewer(trackerId, userId);
-    await requireTrackerGrant(userId, trackerId, "tracker.activities", "EDIT");
+    await requireTrackerGrant(userId, trackerId, "tracker.phases", "MANAGE");
 
     const existing = await prisma.phase.findFirst({ where: { id: phaseId, trackerId } });
     if (!existing) throw new NotFoundError("Phase not found.");
@@ -41,7 +41,7 @@ export async function DELETE(
     const userId = await requireUserId();
     const { id: trackerId, phaseId } = await params;
     await loadTrackerForViewer(trackerId, userId);
-    await requireTrackerGrant(userId, trackerId, "tracker.activities", "DELETE");
+    await requireTrackerGrant(userId, trackerId, "tracker.phases", "MANAGE");
 
     const phase = await prisma.phase.findFirst({
       where: { id: phaseId, trackerId },

@@ -82,6 +82,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
   const canEditActivities = grants.has("tracker.activities:EDIT");
   const canCreateActivities = grants.has("tracker.activities:CREATE");
   const canDeleteActivities = grants.has("tracker.activities:DELETE");
+  const canManagePhases = grants.has("tracker.phases:MANAGE");
   const canViewApprovals = grants.has("tracker.approvals:VIEW");
   const canManageMembers = grants.has("tracker.members:VIEW");
   const canEditTracker = grants.has("tracker.overview:EDIT");
@@ -175,6 +176,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
         canEditActivities={canEditActivities}
         canCreateActivities={canCreateActivities}
         canDeleteActivities={canDeleteActivities}
+        canManagePhases={canManagePhases}
         moduleOptions={moduleOptions}
         members={approvedMembers.map((m) => m.user)}
       />

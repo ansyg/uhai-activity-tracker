@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const userId = await requireUserId();
     const { id: trackerId } = await params;
     await loadTrackerForViewer(trackerId, userId);
-    await requireTrackerGrant(userId, trackerId, "tracker.activities", "CREATE");
+    await requireTrackerGrant(userId, trackerId, "tracker.phases", "MANAGE");
 
     const body = CreatePhaseSchema.parse(await request.json());
     const sequence = body.sequence ?? (await prisma.phase.count({ where: { trackerId } })) + 1;
