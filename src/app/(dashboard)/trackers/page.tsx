@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth/session";
 import { JoinRequestButton } from "@/components/trackers/JoinRequestButton";
@@ -39,13 +40,29 @@ export default async function TrackersPage() {
   // Grouped/aggregate queries across every visible tracker at once, instead
   // of one dashboard query per card — this page can list many trackers.
   const trackerIds = trackers.map((t) => t.id);
-  const [statusCounts, overdueRows] = await Promise.all([
+  const [statusCounts, overdueRows, lastUpdateRows] = await Promise.all([
     prisma.activity.groupBy({ by: ["trackerId", "status"], where: { trackerId: { in: trackerIds } }, _count: true }),
     prisma.activity.findMany({
       where: { trackerId: { in: trackerIds }, status: { not: "COMPLETED" }, endDate: { lt: new Date() } },
       select: { trackerId: true },
     }),
+    // DISTINCT ON (latest-per-group) isn't expressible through the query
+    // builder for a field reached via a relation — same grouped-queries
+    // reasoning as the two calls above, just needs raw SQL to pull it off
+    // in one round trip instead of one query per tracker card.
+    trackerIds.length > 0
+      ? prisma.$queryRaw<{ trackerId: string; name: string | null; createdAt: Date }[]>(Prisma.sql`
+          SELECT DISTINCT ON (a."trackerId") a."trackerId" AS "trackerId", u."name" AS "name", h."createdAt" AS "createdAt"
+          FROM "ActivityHistory" h
+          JOIN "Activity" a ON a.id = h."activityId"
+          LEFT JOIN "User" u ON u.id = h."changedById"
+          WHERE a."trackerId" IN (${Prisma.join(trackerIds)})
+          ORDER BY a."trackerId", h."createdAt" DESC
+        `)
+      : Promise.resolve([]),
   ]);
+
+  const lastUpdateByTracker = new Map(lastUpdateRows.map((row) => [row.trackerId, row]));
 
   const progressByTracker = new Map<string, { total: number; completed: number; inProgress: number; notStarted: number; overdue: number }>();
   for (const row of statusCounts) {
@@ -101,6 +118,7 @@ export default async function TrackersPage() {
           const members = tracker.memberships.filter((m) => m.status === "APPROVED").map((m) => m.user);
           const progress =
             progressByTracker.get(tracker.id) ?? { total: 0, completed: 0, inProgress: 0, notStarted: 0, overdue: 0 };
+          const lastUpdate = lastUpdateByTracker.get(tracker.id);
 
           return (
             <div key={tracker.id} className="card" style={{ padding: 22, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -147,6 +165,13 @@ export default async function TrackersPage() {
                   </div>
                 </div>
               </div>
+
+              {lastUpdate && (
+                <p className="muted" style={{ fontSize: "0.78em" }}>
+                  Last updated by {lastUpdate.name ?? "someone"} ·{" "}
+                  {new Date(lastUpdate.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                </p>
+              )}
 
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {canOpen && (

@@ -4,4 +4,6 @@ export interface ActivityUpdatePatch {
   status?: string;
   startDate?: string | null;
   endDate?: string | null;
+  lastUpdatedBy?: string;
+  lastUpdatedAt?: string;
 }

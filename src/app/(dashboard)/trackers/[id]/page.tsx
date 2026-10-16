@@ -1,18 +1,23 @@
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { getCurrentUserId } from "@/lib/auth/session";
-import { getTrackerGrants } from "@/lib/rbac/permissions";
 import { AvatarStack } from "@/components/AvatarStack";
+import { BackLink } from "@/components/BackLink";
+import { DeleteTrackerButton } from "@/components/trackers/DeleteTrackerButton";
+import { ImportXlsButton } from "@/components/trackers/ImportXlsButton";
+import { TrackerBoard } from "@/components/trackers/TrackerBoard";
+import { TrackerCalendarSyncButton } from "@/components/trackers/TrackerCalendarSyncButton";
 import { TrackerDatesEditor } from "@/components/trackers/TrackerDatesEditor";
 import { TrackerSettingsEditor } from "@/components/trackers/TrackerSettingsEditor";
 import { TrackerSystemsEditor } from "@/components/trackers/TrackerSystemsEditor";
-import { TrackerCalendarSyncButton } from "@/components/trackers/TrackerCalendarSyncButton";
-import { DeleteTrackerButton } from "@/components/trackers/DeleteTrackerButton";
-import { TrackerBoard } from "@/components/trackers/TrackerBoard";
-import { BackLink } from "@/components/BackLink";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { prisma } from "@/lib/db";
+import { getTrackerGrants } from "@/lib/rbac/permissions";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 
-export default async function TrackerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TrackerDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const userId = await getCurrentUserId();
   if (!userId) redirect("/sign-in");
 
@@ -34,36 +39,42 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
   });
   const isOwner = tracker.ownerId === userId;
   const isApprovedMember = membership?.status === "APPROVED";
-  if (tracker.visibility === "PRIVATE" && !isOwner && !isApprovedMember) notFound();
+  if (tracker.visibility === "PRIVATE" && !isOwner && !isApprovedMember)
+    notFound();
 
-  const [phases, grants, approvedMembers, pendingRequestCount] = await Promise.all([
-    prisma.phase.findMany({
-      where: { trackerId },
-      orderBy: { sequence: "asc" },
-      include: {
-        activities: {
-          orderBy: { createdAt: "asc" },
-          include: {
-            module: { select: { id: true, name: true } },
-            assignees: { include: { user: { select: { id: true, name: true } } } },
-            history: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              include: { changedBy: { select: { name: true } } },
+  const [phases, grants, approvedMembers, pendingRequestCount] =
+    await Promise.all([
+      prisma.phase.findMany({
+        where: { trackerId },
+        orderBy: { sequence: "asc" },
+        include: {
+          activities: {
+            orderBy: { createdAt: "asc" },
+            include: {
+              module: { select: { id: true, name: true } },
+              assignees: {
+                include: { user: { select: { id: true, name: true } } },
+              },
+              history: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+                include: { changedBy: { select: { name: true } } },
+              },
+              checklistItems: { select: { done: true } },
+              _count: { select: { comments: true } },
             },
-            checklistItems: { select: { done: true } },
-            _count: { select: { comments: true } },
           },
         },
-      },
-    }),
-    getTrackerGrants(userId, trackerId),
-    prisma.trackerMembership.findMany({
-      where: { trackerId, status: "APPROVED" },
-      select: { user: { select: { id: true, name: true } } },
-    }),
-    prisma.trackerMembership.count({ where: { trackerId, status: "PENDING" } }),
-  ]);
+      }),
+      getTrackerGrants(userId, trackerId),
+      prisma.trackerMembership.findMany({
+        where: { trackerId, status: "APPROVED" },
+        select: { user: { select: { id: true, name: true } } },
+      }),
+      prisma.trackerMembership.count({
+        where: { trackerId, status: "PENDING" },
+      }),
+    ]);
 
   const boardPhases = phases.map((phase) => ({
     id: phase.id,
@@ -94,16 +105,33 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
       <BackLink href="/trackers" label="Trackers" />
       <div className="page-hero">
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 6,
+            }}
+          >
             <h1>{tracker.name}</h1>
-            <span className={`badge ${tracker.visibility === "PUBLIC" ? "badge-accent" : "badge-neutral"}`}>
+            <span
+              className={`badge ${tracker.visibility === "PUBLIC" ? "badge-accent" : "badge-neutral"}`}
+            >
               {tracker.visibility === "PUBLIC" ? "Public" : "Private"}
             </span>
           </div>
           <p className="muted" style={{ maxWidth: 560 }}>
             {tracker.description}
           </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginTop: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <AvatarStack people={approvedMembers.map((m) => m.user)} />
           </div>
           {/* Its own full-width block, not a flex sibling — the expanded editor is a tall
@@ -140,15 +168,31 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
           )}
           {canManageCalendar && (
             <div style={{ marginTop: 10 }}>
-              <TrackerCalendarSyncButton trackerId={trackerId} calendarSyncEnabled={tracker.calendarSyncEnabled} />
+              <TrackerCalendarSyncButton
+                trackerId={trackerId}
+                calendarSyncEnabled={tracker.calendarSyncEnabled}
+              />
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            width: "100%",
+            justifyContent: "flex-end",
+          }}
+        >
           <Link className="btn" href={`/trackers/${trackerId}/timeline`}>
             Timeline
           </Link>
-          <Link className="btn" href={`/reports/${trackerId}`} target="_blank" rel="noreferrer">
+          <Link
+            className="btn"
+            href={`/reports/${trackerId}`}
+            target="_blank"
+            rel="noreferrer"
+          >
             Export report
           </Link>
           {canViewApprovals && (
@@ -167,6 +211,7 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
               </span>
             </Link>
           )}
+          {canCreateActivities && <ImportXlsButton trackerId={trackerId} />}
         </div>
       </div>
 
@@ -184,7 +229,10 @@ export default async function TrackerDetailPage({ params }: { params: Promise<{ 
       {canDeleteTracker && (
         <div style={{ marginTop: 48 }}>
           <h3 style={{ marginBottom: 14 }}>Danger zone</h3>
-          <DeleteTrackerButton trackerId={trackerId} trackerName={tracker.name} />
+          <DeleteTrackerButton
+            trackerId={trackerId}
+            trackerName={tracker.name}
+          />
         </div>
       )}
     </div>

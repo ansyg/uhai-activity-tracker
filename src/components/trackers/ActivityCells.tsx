@@ -137,8 +137,11 @@ export function DatesCell({
     setError(null);
     try {
       const iso = value ? new Date(value).toISOString() : null;
-      await api.patch(`/api/activities/${activity.id}`, { [field]: iso });
-      onUpdate?.(activity.id, { [field]: iso });
+      const result = await api.patch<{ updatedByName: string | null }>(`/api/activities/${activity.id}`, { [field]: iso });
+      onUpdate?.(activity.id, {
+        [field]: iso,
+        ...(result.updatedByName ? { lastUpdatedBy: result.updatedByName, lastUpdatedAt: new Date().toISOString() } : {}),
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't save.");
       setter(previous);
@@ -204,10 +207,14 @@ export function ProgressStatusCell({
     setSaving(true);
     setError(null);
     try {
-      await api.patch(`/api/activities/${activity.id}`, { statusPercent: next });
+      const result = await api.patch<{ updatedByName: string | null }>(`/api/activities/${activity.id}`, { statusPercent: next });
       const nextStatus = statusFromPercent(next);
       setStatus(nextStatus);
-      onUpdate?.(activity.id, { statusPercent: next, status: nextStatus });
+      onUpdate?.(activity.id, {
+        statusPercent: next,
+        status: nextStatus,
+        ...(result.updatedByName ? { lastUpdatedBy: result.updatedByName, lastUpdatedAt: new Date().toISOString() } : {}),
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't save.");
       setPercent(activity.statusPercent);

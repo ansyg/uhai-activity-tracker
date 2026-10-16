@@ -107,6 +107,21 @@ export function TrackerBoard({
     ? Math.round((dashboard.totals.completed / dashboard.totals.total) * 100)
     : 0;
 
+  // Most recent edit across every activity in the tracker — reads straight
+  // off live `phases` state, so it updates the instant anyone saves a
+  // change, same as the per-row "by <name>" cells (no refetch needed).
+  const lastTrackerUpdate = useMemo(() => {
+    let latest: { name: string; at: string } | null = null;
+    for (const phase of phases) {
+      for (const activity of phase.activities) {
+        if (!activity.lastUpdatedBy || !activity.lastUpdatedAt) continue;
+        const at = new Date(activity.lastUpdatedAt).toISOString();
+        if (!latest || at > latest.at) latest = { name: activity.lastUpdatedBy, at };
+      }
+    }
+    return latest;
+  }, [phases]);
+
   const activityColumns: Column<ActivityData>[] = useMemo(
     () => [
       {
@@ -236,6 +251,12 @@ export function TrackerBoard({
           <div style={{ fontSize: "0.85em", opacity: 0.9, marginTop: 6 }}>
             {dashboard.totals.completed} of {dashboard.totals.total} activities completed
           </div>
+          {lastTrackerUpdate && (
+            <div style={{ fontSize: "0.78em", opacity: 0.8, marginTop: 4 }}>
+              Last updated by {lastTrackerUpdate.name} ·{" "}
+              {new Date(lastTrackerUpdate.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </div>
+          )}
         </div>
         <SummaryTile label="In progress" value={dashboard.totals.inProgress} tone="in-progress" />
         <SummaryTile label="Not started" value={dashboard.totals.notStarted} tone="not-started" />

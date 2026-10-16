@@ -120,7 +120,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
     }
 
-    return NextResponse.json({ activity: updated });
+    // So an optimistic-update cell (ProgressStatusCell, DatesCell) can show
+    // "by <name>" immediately instead of it staying stale until the next
+    // full page load re-fetches history.
+    const updater = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+
+    return NextResponse.json({ activity: updated, updatedByName: updater?.name ?? null });
   } catch (error) {
     return handleApiError(error);
   }
